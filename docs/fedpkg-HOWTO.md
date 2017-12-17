@@ -1,4 +1,4 @@
-# Maintaining Packages in Fedora Cheat Sheet
+# Maintaining Packages in Fedora: Cheat Sheet
 
 Assume you have FAS account, Bugzilla account, and sponsorship.
 
