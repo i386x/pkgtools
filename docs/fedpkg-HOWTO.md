@@ -1,4 +1,4 @@
-# Fedora Packaging Guidelines
+# Maintaining Packages in Fedora Cheat Sheet
 
 Assume you have FAS account, Bugzilla account, and sponsorship.
 
@@ -34,29 +34,31 @@ git remote set-url origin <ssh_url_to_your_forked_repo>
 
 ## Doing a changes
 
-1. Clean all untracked files (if there are any):
+Clean all untracked files (if there are any):
 ```sh
 fedpkg clean
 ```
 
-1. Prepare your package:
+Prepare your package:
 ```sh
 # Run commands in %prep section; this downloads and unpacks source tarball from
 # upstream and applies patches:
 fedpkg prep
 ```
 
-1. Make your contributions.
+Make your contributions.
 
 ## Useful utilities and tricks
 
 ### Some useful utilities
+
 ```sh
 # ld-linux.so.2 dynamic loader:
 dnf install /lib/ld-linux.so.2
 ```
 
-Debugging:
+### Debugging
+
 ```sh
 # GNU debugger:
 gdb
@@ -73,10 +75,12 @@ LD_DEBUG
 # - show how shared objects are searched, loaded, and initialized:
 LD_DEBUG=libs ./<elf_binary> [arguments]
 ```
+
 **Tip**: If something is missing (debug information, symbols, ...) `gdb`
 provides you a hint or command how to install it.
 
-Shared libraries:
+### Shared libraries
+
 ```sh
 # Involved files and directories:
 /etc/ld.so.conf
@@ -108,7 +112,8 @@ See also http://tldp.org/HOWTO/Program-Library-HOWTO/shared-libraries.html.
 Consult the documentation and/or source code of maintained package how to deal
 with it.
 
-ELF/COFF/coredumps analysis:
+### ELF/COFF/coredumps analysis
+
 ```sh
 # Read ELF binary:
 readelf
@@ -137,15 +142,18 @@ objdump -x <elf_binary>
 coredumpctl gdb
 ```
 
-Performance:
+### Performance analysis
+
 ```sh
 # Show system resources usage:
 top
 ```
-**Chromium tip**: `Shift + Esc` launch the task manager with PID and CPU usage
-information per tab.
 
-Tricks:
+**Chromium tip**: `Shift + Esc` launches the task manager with PID and CPU
+usage information per tab.
+
+### Tricks
+
 ```sh
 # View the content of binary file in hex+ASCII:
 hexdump -Cv <file> | less
