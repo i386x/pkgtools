@@ -1,10 +1,10 @@
 #
-#! \file    ./src/pk-maint.t
+#! \file    ./src/pk-maint/t/pk-maint.t
 #! \author  Jiří Kučera, <jkucera AT redhat.com>
 #! \stamp   2017-12-20 19:47:22 (UTC+01:00, DST+00:00)
 #! \project pkgtools: Tools for Maintaining Fedora Packages
 #! \license MIT (see ./LICENSE)
-#! \version 0.0.0
+#! \version See ./VERSION
 #! \fdesc   Main script tests.
 #
 
