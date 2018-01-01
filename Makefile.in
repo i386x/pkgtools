@@ -1,0 +1,68 @@
+#
+#! \file    ./Makefile.in
+#! \author  Jiří Kučera, <jkucera AT redhat.com>
+#! \stamp   2017-12-30 11:53:53 (UTC+01:00, DST+00:00)
+#! \project pkgtools: Tools for Maintaining Fedora Packages
+#! \license MIT (see ./LICENSE)
+#! \version See ./VERSION
+#! \fdesc   Build & install the project.
+#
+
+INSTALL   := @sh_prog@ build/install.sh
+UNINSTALL := @sh_prog@ build/rm.sh
+CHECK     := @sh_prog@ build/install.sh --check
+
+BIN_DIR      := @BIN_DIR@
+CFG_DIR      := @CFG_DIR@
+PKM_PROG     := pk-maint
+PKM_RC       := $(PKM_PROG)rc
+PKM_DATA_DIR := @DATA_DIR@/$(PKM_PROG)
+PKM_CMD_DIR  := $(PKM_DATA_DIR)/cmd
+PKM_TEST_DIR := $(PKM_DATA_DIR)/t
+
+.PHONY: all install update uninstall clean
+
+all:
+	@echo "Usage: $(MAKE) [target]"
+	@echo ""
+	@echo "where target is"
+	@echo ""
+	@echo "  install	install pkgtools"
+	@echo "  update	update pkgtools"
+	@echo "  uninstall	uninstall pkgtools"
+	@echo "  clean		remove build products"
+	@echo ""
+
+install:
+	$(CHECK) $(PKM_PROG)
+	$(CHECK) $(BIN_DIR)/$(PKM_PROG)
+	$(CHECK) $(PKM_DATA_DIR)
+	$(CHECK) $(CFG_DIR)/$(PKM_RC)
+	$(MAKE) update
+
+update: build/$(PKM_PROG)
+	$(INSTALL) -d $(PKM_DATA_DIR)
+	$(INSTALL) -d $(PKM_CMD_DIR)
+	$(INSTALL) -d $(PKM_TEST_DIR)
+	$(INSTALL) src/$(PKM_PROG)/cmd/init.sh $(PKM_CMD_DIR)/init.sh
+	$(INSTALL) src/$(PKM_PROG)/t/$(PKM_PROG).t $(PKM_TEST_DIR)/$(PKM_PROG).t
+	$(INSTALL) -m644 src/$(PKM_RC) $(CFG_DIR)/$(PKM_RC)
+	$(INSTALL) build/$(PKM_PROG) $(BIN_DIR)/$(PKM_PROG)
+
+uninstall:
+	$(UNINSTALL) $(PKM_DATA_DIR)
+	$(UNINSTALL) $(CFG_DIR)/$(PKM_RC)
+	$(UNISNTALL) $(BIN_DIR)/$(PKM_PROG)
+
+clean:
+	@rm_prog@ -f build/$(PKM_PROG)
+
+build/$(PKM_PROG): src/$(PKM_PROG).sh
+	@sed_prog@ -e 's|=@=VERSION=@=|@VERSION@|g' \
+                   -e 's|=@=VERBOSE=@=|@VERBOSE@|g' \
+                   -e 's|=@=DRY_RUN=@=|@DRY_RUN@|g' \
+                   -e 's|=@=FORCE_RM=@=|@FORCE_RM@|g' \
+                   -e 's|=@=BIN_DIR=@=|@BIN_DIR@|g' \
+                   -e 's|=@=CFG_DIR=@=|@CFG_DIR@|g' \
+                   -e 's|=@=DATA_DIR=@=|@DATA_DIR@|g' \
+                   src/$(PKM_PROG).sh > $@

@@ -1,23 +1,38 @@
-#!/bin/bash
+#!/bin/sh
 #
 #! \file    ./src/pk-maint.sh
 #! \author  Jiří Kučera, <jkucera AT redhat.com>
 #! \stamp   2017-12-18 00:22:17 (UTC+01:00, DST+00:00)
 #! \project pkgtools: Tools for Maintaining Fedora Packages
 #! \license MIT (see ./LICENSE)
-#! \version 0.0.0
+#! \version See ../VERSION
 #! \fdesc   Main script.
 #
 
-script_name=$0
-script_name=${script_name##*/}
-script_name=${script_name%.*}
+PKM_NAME="$0"
+PKM_NAME="${PKM_NAME##*/}"
+PKM_NAME="${PKM_NAME%.*}"
+export PKM_NAME
+
+PKM_CFGDIR='@CFG_DIR@'
+case "$PKM_CFGDIR" in
+  @*@) PKM_CFGDIR=$(dirname $0) ;;
+esac
+export PKM_CFGDIR
+
+PKM_DATADIR='@DATA_DIR@'
+case "$PKM_DATADIR" in
+  @*@) PKM_DATADIR=$(dirname $0) ;;
+esac
+export PKM_DATADIR
 
 nl_sep='
 '
 tab_sep='	'
-
 export nl_sep tab_sep
+
+PKM_CMD=""
+export PKM_CMD
 
 ##
 # error $1
@@ -26,7 +41,14 @@ export nl_sep tab_sep
 #
 # Print $1 to stderr and exit with exit code 1.
 function error() {
-  echo "$script_name: ERROR: $*" 1>&2
+  local T
+
+  if [ "$PKM_CMD" ]; then
+    T=" $PKM_CMD"
+  else
+    T=""
+  fi
+  echo "${PKM_NAME}$T: ERROR: $*" 1>&2
   exit 1
 }
 
@@ -37,7 +59,14 @@ function error() {
 #
 # Print $1 to stderr.
 function warning() {
-  echo "$script_name: WARNING: $*" 1>&2
+  local T
+
+  if [ "$PKM_CMD" ]; then
+    T=" $PKM_CMD"
+  else
+    T=""
+  fi
+  echo "${PKM_NAME}$T: WARNING: $*" 1>&2
 }
 
 ##
@@ -47,7 +76,14 @@ function warning() {
 #
 # Print $1 to stdout.
 function inform() {
-  echo "$script_name: $*"
+  local T
+
+  if [ "$PKM_CMD" ]; then
+    T=" $PKM_CMD"
+  else
+    T=""
+  fi
+  echo "${PKM_NAME}$T: $*"
 }
 
 ##
@@ -191,6 +227,7 @@ unpack() {
   :
 }
 
+require_command cat
 require_command head
 require_command cut
 require_command tr
@@ -201,15 +238,40 @@ require_command tar
 require_command gzip
 require_command bzip2
 
-if [ -f ~/.${script_name}rc ]; then
-  source ~/.${script_name}rc
+PKM_VERSION='@VERSION@'
+case "$PKM_VERSION" in
+  @*@) PKM_VERSION=$(cat ../VERSION)
+esac
+export PKM_VERSION
+
+if [ -f "${PKM_CFGDIR}/${PKM_NAME}/${PKM_NAME}rc" ]; then
+  source "${PKM_CFGDIR}/${PKM_NAME}/${PKM_NAME}rc"
+fi
+if [ -f "~/.${PKM_NAME}rc" ]; then
+  source "~/.${PKM_NAME}rc"
 fi
 
-declare -A long_opts_map
-declare -A short_opts_map
-declare -A long_kvopts_map
-declare -A short_kvopts_map
-helplines=""
+OPTVAR_PREFIX='OPT_'
+OPTSTORAGE_PREFIX=$(echo $PKM_NAME | tr 'a-z-' 'A-Z_')
+export OPTVAR_PREFIX OPTSTORAGE_PREFIX
+
+##
+# make_optstorage
+#
+# Make a room for the options definitions.
+function make_optstorage() {
+  unset ${OPTSTORAGE_PREFIX}_long_opts_map
+  unset ${OPTSTORAGE_PREFIX}_short_opts_map
+  unset ${OPTSTORAGE_PREFIX}_long_kvopts_map
+  unset ${OPTSTORAGE_PREFIX}_short_kvopts_map
+  eval "declare -gA ${OPTSTORAGE_PREFIX}_long_opts_map"
+  eval "declare -gA ${OPTSTORAGE_PREFIX}_short_opts_map"
+  eval "declare -gA ${OPTSTORAGE_PREFIX}_long_kvopts_map"
+  eval "declare -gA ${OPTSTORAGE_PREFIX}_short_kvopts_map"
+  eval "${OPTSTORAGE_PREFIX}_helplines=\"\""
+}
+
+make_optstorage
 
 ##
 # mkhelpline $1 $2 $3 $4
@@ -249,10 +311,13 @@ function mkhelpline() {
 #
 # Add $1 to help screen.
 function add_to_helplines() {
-  if [ "$helplines" ]; then
-    helplines="$helplines${nl_sep}$1"
+  local T
+
+  eval "T=\"\$${OPTSTORAGE_PREFIX}_helplines\""
+  if [ "$T" ]; then
+    eval "${OPTSTORAGE_PREFIX}_helplines=\"\$${OPTSTORAGE_PREFIX}_helplines\${nl_sep}\$1\""
   else
-    helplines="$1"
+    eval "${OPTSTORAGE_PREFIX}_helplines=\"\$1\""
   fi
 }
 
@@ -263,7 +328,13 @@ function add_to_helplines() {
 #
 # Exit with error if $1 was already defined.
 function assert_longopt_undefined() {
-  if [ "${long_opts_map[$1]}" ] || [ "${long_kvopts_map[$1]}" ]; then
+  local T
+  local U
+
+  eval "T=\"\${${OPTSTORAGE_PREFIX}_long_opts_map[\$1]}\""
+  eval "U=\"\${${OPTSTORAGE_PREFIX}_long_kvopts_map[\$1]}\""
+
+  if [ "$T" ] || [ "$U" ]; then
     error "option --$1 was already defined"
   fi
 }
@@ -275,8 +346,13 @@ function assert_longopt_undefined() {
 #
 # Exit with error if at least one option from $1 is already defined.
 function assert_shortopt_undefined() {
+  local T
+  local U
+
   for o in $(echo $1 | tr ',' ' '); do
-    if [ "${short_opts_map[$o]}" ] || [ "${short_kvopts_map[$o]}" ]; then
+    eval "T=\"\${${OPTSTORAGE_PREFIX}_short_opts_map[\$o]}\""
+    eval "U=\"\${${OPTSTORAGE_PREFIX}_short_kvopts_map[\$o]}\""
+    if [ "$T" ] || [ "$U" ]; then
       error "flag -$o was already defined"
     fi
   done
@@ -292,10 +368,17 @@ function assert_shortopt_undefined() {
 #        `+' or `-' are enclosed between `()', the enabled/disabled note is not
 #        displayed in help line
 #   $5 - `+' if this option is enabling, `-' for disabling
-#   $6 - associated variable name (without OPT_) or `-' if the name should be
-#        determined automatically
+#   $6 - associated variable name (without $OPTVAR_PREFIX) or `-' if the name
+#        should be determined automatically
 #
-# Define a flag-like option. If $1 is `-', short forms are not used.
+# Define a flag-like option. If $1 is `-', short forms are not used. Also
+# define a variable with a name
+#
+#   $6 (all letters capitalized, `-' changed to `_'), if $6 is not `-', or
+#   $2 (all letters capitalized, `-' changed to `_') otherwise
+#
+# which is prefixed by $OPTVAR_PREFIX. Such a variable is initially set to 1 if
+# $4 is `+' or `(+)'; otherwise, it is set to 0.
 function rawdefopt() {
   local T
 
@@ -319,20 +402,20 @@ function rawdefopt() {
   fi
 
   if [ "$4" = "+" ] || [ "$4" = "(+)" ]; then
-    setvar OPT_$T 1
+    setvar ${OPTVAR_PREFIX}$T 1
   else # "-" || "(-)"
-    setvar OPT_$T 0
+    setvar ${OPTVAR_PREFIX}$T 0
   fi
 
   if [ "$5" = "+" ]; then
-    long_opts_map[$2]="setvar OPT_$T 1"
+    eval "${OPTSTORAGE_PREFIX}_long_opts_map[\$2]=\"setvar ${OPTVAR_PREFIX}\$T 1\""
   else
-    long_opts_map[$2]="setvar OPT_$T 0"
+    eval "${OPTSTORAGE_PREFIX}_long_opts_map[\$2]=\"setvar ${OPTVAR_PREFIX}\$T 0\""
   fi
 
   if [ ! "$1" = "-" ]; then
     for x in $(echo $1 | tr ',' ' '); do
-      short_opts_map[$x]="$2"
+      eval "${OPTSTORAGE_PREFIX}_short_opts_map[\$x]=\"\$2\""
     done
   fi
 }
@@ -346,9 +429,12 @@ function rawdefopt() {
 #   $4 - option default value
 #   $5 - name of value type
 #
-# Define a key-value option. If $1 is `-', short forms are not used.
+# Define a key-value option. If $1 is `-', short forms are not used. Also
+# define a variable named $2 (with all letters capitalized and `-' changed to
+# `_') and prefixed by $OPTVAR_PREFIX with $4 as its default value.
 function rawdefkvopt() {
   local T
+  local U
 
   assert_longopt_undefined "$2"
   assert_shortopt_undefined "$1"
@@ -358,18 +444,23 @@ function rawdefkvopt() {
   else
     T=""
   fi
-  T=$(mkhelpline "$1" "$2" "$3 (default value is \"$4\")" "$T")
+  if [ "$4" ]; then
+    U="$3 (default value is \"$4\")"
+  else
+    U="$3"
+  fi
+  T=$(mkhelpline "$1" "$2" "$U" "$T")
   add_to_helplines "$T"
 
   T=$(echo $2 | tr 'a-z-' 'A-Z_')
 
-  setvar OPT_$T "$4"
+  setvar ${OPTVAR_PREFIX}$T "$4"
 
-  long_kvopts_map[$2]="$T"
+  eval "${OPTSTORAGE_PREFIX}_long_kvopts_map[\$2]=\"\$T\""
 
   if [ ! "$1" = "-" ]; then
     for x in $(echo $1 | tr ',' ' '); do
-      short_kvopts_map[$x]="$T"
+      eval "${OPTSTORAGE_PREFIX}_short_kvopts_map[\$x]=\"\$T\""
     done
   fi
 }
@@ -417,12 +508,12 @@ function handle_long_kvoption() {
 
   K=$(expr "$1" : '^--\([^=][^=]*\)=..*$')
   V=$(expr "$1" : '^--[^=][^=]*=\(..*\)$')
-  T="${long_kvopts_map[$K]}"
+  eval "T=\"\${${OPTSTORAGE_PREFIX}_long_kvopts_map[\$K]}\""
 
   if [ -z "$T" ]; then
     error "--$K is not key-value option"
   fi
-  setvar OPT_$T "$V"
+  setvar ${OPTVAR_PREFIX}$T "$V"
 }
 
 ##
@@ -433,6 +524,7 @@ function handle_long_kvoption() {
 # Handle --x[=y] argument.
 function handle_long_option() {
   local T
+  local U
 
   if [ "$need_arg" ]; then
     error "expected argument, but $1 option given"
@@ -443,17 +535,18 @@ function handle_long_option() {
     handle_long_kvoption "$1"
   else
     T=$(expr "$1" : '^--\([a-zA-Z][-a-zA-Z0-9]*\)$')
-    echo "<(<$T>)>" 1>&2
     if [ -z "$T" ]; then
       error "ill-formed option $1"
     fi
-    if [ "${long_kvopts_map[$T]}" ]; then
+    eval "U=\"\${${OPTSTORAGE_PREFIX}_long_kvopts_map[\$T]}\""
+    if [ "$U" ]; then
       error "$1: missing value"
     fi
-    if [ -z "${long_opts_map[$T]}" ]; then
+    eval "U=\"\${${OPTSTORAGE_PREFIX}_long_opts_map[\$T]}\""
+    if [ -z "$U" ]; then
       error "unknown option $1"
     fi
-    ${long_opts_map[$T]}
+    eval "\${${OPTSTORAGE_PREFIX}_long_opts_map[\$T]}"
   fi
 }
 
@@ -468,13 +561,13 @@ function handle_short_kvoption() {
   local O
   local V
 
-  O="${short_kvopts_map[$1]}"
+  eval "O=\"\${${OPTSTORAGE_PREFIX}_short_kvopts_map[\$1]}\""
   V=$(expr "$2" : '^-.\(.*\)$')
 
   if [ -z "$V" ]; then
     need_arg="$O"
   else
-    setvar OPT_$O "$V"
+    setvar ${OPTVAR_PREFIX}$O "$V"
   fi
 }
 
@@ -498,6 +591,7 @@ function handle_short_kvoption() {
 # Any other forms of $1 are treated as errors.
 function handle_short_option() {
   local T
+  local U
   local H
 
   if [ "$need_arg" ]; then
@@ -510,16 +604,18 @@ function handle_short_option() {
   if [ -z "$T" ]; then
     error "ill-formed option $1"
   fi
-  if [ "${short_kvopts_map[$T]}" ]; then
+  eval "U=\"\${${OPTSTORAGE_PREFIX}_short_kvopts_map[\$T]}\""
+  if [ "$U" ]; then
     handle_short_kvoption "$T" "$1"
     H=1
   fi
-  if [ $H -eq 0 ] && [ -z "${short_opts_map[$T]}" ]; then
+  eval "U=\"\${${OPTSTORAGE_PREFIX}_short_opts_map[\$T]}\""
+  if [ $H -eq 0 ] && [ -z "$U" ]; then
     error "unknown short option -$T"
   fi
   if [ $H -eq 0 ]; then
-    T="${short_opts_map[$T]}"
-    ${long_opts_map[$T]}
+    eval "T=\"\${${OPTSTORAGE_PREFIX}_short_opts_map[\$T]}\""
+    eval "\${${OPTSTORAGE_PREFIX}_long_opts_map[\$T]}"
     T=$(expr "$1" : '^-.\(.*\)$')
     if [ "$T" ]; then
       T="-$T"
@@ -536,7 +632,7 @@ function handle_short_option() {
 # Set $? to 0 if `need_arg' was handled. Otherwise, set $? to 1.
 function handle_need_arg() {
   if [ "$need_arg" ]; then
-    setvar OPT_$need_arg "$1"
+    setvar ${OPTVAR_PREFIX}$need_arg "$1"
     need_arg=""
     true
   else
@@ -544,41 +640,193 @@ function handle_need_arg() {
   fi
 }
 
+declare -A commands
+cmd_helplines=""
+
+##
+# cmd $1 $2 $3
+#
+#   $1 - command name
+#   $2 - short command description
+#   $3 - command runner
+#
+# Define a command.
+function cmd() {
+  if [ "$cmd_helplines" ]; then
+    cmd_helplines="$cmd_helplines${nl_sep}  $1${tab_sep}$2"
+  else
+    cmd_helplines="  $1${tab_sep}$2"
+  fi
+  if [ "${commands[$1]}" ]; then
+    error "command $1 was already defined"
+  fi
+  commands[$1]="$3"
+}
+
+##
+# fcmd $1 $2 $3
+#
+#   $1, $2 - as in `cmd'
+#   $3 - command as a file
+#
+# Define a command, where command is a script stored in $3.
+function fcmd() {
+  cmd "$1" "$2" "${PKM_DATADIR}/${PKM_NAME}/cmd/$3"
+}
+
+##
+# icmd $1 $2 $3
+#
+#   $1, $2 - as in `cmd'
+#   $3 - command as a function
+#
+# Define a command, where command is a function $3.
+function icmd() {
+  cmd "$1" "$2" "$3"
+}
+
 ##
 # usage
 #
 # Print this script usage to stdout.
 function usage() {
-  echo "Usage: $script_name [options] [COMMAND] [command options]"
+  echo "Usage: $PKM_NAME [options] COMMAND [command options]"
   echo ""
   echo "where options are"
   echo ""
-  echo "$helplines"
+  eval "echo \"\$${OPTSTORAGE_PREFIX}_helplines\""
   echo ""
+  echo "and commands are"
+  echo ""
+  echo "$cmd_helplines"
+  echo ""
+  echo "To get the more information about a command from the list above, try"
+  echo ""
+  echo "  $PKM_NAME help command"
+  echo ""
+  echo "or simply: $PKM_NAME command --help"
 }
-
-defopt h,? help "print this screen and exit"
 
 need_arg=""
 short_args=""
-while [ "$*" ]; do
-  case "$1" in
-    --*)
-      handle_long_option "$1"
-      ;;
-    -*)
-      short_args="$1"
-      while [ "$short_args" ]; do
-        handle_short_option "$short_args" short_args
-      done
-      ;;
-    *)
-      handle_need_arg "$1" || break
-      ;;
-  esac
-  shift
-done
-[ "$need_arg" ] && error "expected argument, but end of command line reached"
+nargs=0
+export need_arg short_args nargs
+
+##
+# process_args $1 $2 ... $N
+#
+#   $1, $2, ..., $N - arguments
+#
+# Process given arguments, return the number of processed arguments.
+function process_args() {
+  need_arg=""
+  short_args=""
+  nargs=0
+  while [ "$*" ]; do
+    case "$1" in
+      --*)
+        handle_long_option "$1"
+        ;;
+      -*)
+        short_args="$1"
+        while [ "$short_args" ]; do
+          handle_short_option "$short_args" short_args
+        done
+        ;;
+      *)
+        handle_need_arg "$1" || break
+        ;;
+    esac
+    shift
+    nargs=$((nargs + 1))
+  done
+  [ "$need_arg" ] && error "expected argument, but end of command line reached"
+}
+
+##
+# help_usage
+#
+# Display help lines for `help' builtin command.
+function help_usage() {
+  echo "help: help [options] COMMAND"
+  echo ""
+  echo "Show COMMAND helplines; options are"
+  echo ""
+  eval "echo \"\$${OPTSTORAGE_PREFIX}_helplines\""
+  echo ""
+}
+
+##
+# help_cmd $1 $2 ... $N
+#
+#   $1, $2, ..., $N - arguments
+#
+# `help' builtin command.
+function help_cmd() {
+  OPTVAR_PREFIX='HELPOPT_'
+  OPTSTORAGE_PREFIX='HELP'
+
+  make_optstorage
+  defopt h,? help "print this screen and exit"
+
+  process_args "$@"
+  shift $nargs
+
+  [ $HELPOPT_HELP -ne 0 ] && { help_usage; exit 0; }
+  [ -z "$1" ] && error "help: expected command"
+  [ -z "${commands[$1]}" ] && error "help: unknown command $1"
+
+  (${commands[$1]} --help)
+}
+
+##
+# selftest_usage
+#
+# Display help lines for `selftest' builtin command.
+function selftest_usage() {
+  echo "selftest: selftest [options]"
+  echo ""
+  echo "Run tests for pk-maint; options are"
+  echo ""
+  eval "echo \"\$${OPTSTORAGE_PREFIX}_helplines\""
+  echo ""
+}
+
+##
+# selftest_cmd $1 $2 ... $N
+#
+#   $1, $2, ..., $N - arguments
+#
+# `selftest' builtin command.
+function selftest_cmd() {
+  OPTVAR_PREFIX='SELFTESTOPT_'
+  OPTSTORAGE_PREFIX='SELFTEST'
+
+  make_optstorage
+  defopt h,? help "print this screen and exit"
+
+  process_args "$@"
+  shift $nargs
+
+  [ $SELFTESTOPT_HELP -ne 0 ] && { selftest_usage; exit 0; }
+
+  source "${PKM_DATADIR}/${PKM_NAME}/t/${PKM_NAME}.t" && runtests
+}
+
+defopt h,? help "print this screen and exit"
+defopt - version "${tab_sep}print version and exit"
+icmd help "${tab_sep}display help about selected command" help_cmd
+icmd selftest "run tests for this script" selftest_cmd
+
+process_args "$@"
+shift $nargs
 
 [ $OPT_HELP -ne 0 ] && { usage; exit 0; }
-[ "$1" = "selftest" ] && { source ./$script_name.t && runtests; exit 0; }
+[ $OPT_VERSION -ne 0 ] && { echo $PKM_VERSION; exit 0; }
+[ -z "$1" ] && error "expected command"
+[ -z "${commands[$1]}" ] && error "unknown command $1"
+
+PKM_CMD="$1"
+shift
+
+(${commands[$PKM_CMD]} "$@")

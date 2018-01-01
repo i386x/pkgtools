@@ -1,0 +1,68 @@
+#!/bin/sh
+#
+#! \file    ./mr-proper
+#! \author  Jiří Kučera, <jkucera AT redhat.com>
+#! \stamp   2017-12-31 23:15:47 (UTC+01:00, DST+00:00)
+#! \project pkgtools: Tools for Maintaining Fedora Packages
+#! \license MIT (see ./LICENSE)
+#! \version See ./VERSION
+#! \fdesc   Do dist-clean on this project.
+#
+
+script_dir=$(dirname $0)
+
+last_error=0
+last_stderr=""
+verbose=0
+
+error() {
+  echo "$0: error: $*" 1>&2
+  exit 1
+}
+
+try_run() {
+  [ $verbose -ne 0 ] && echo -n "Running $*: "
+  ("$@") >/dev/null 2>/usr/tmp/stderr.$$
+  last_error=$?
+  last_stderr=$(cat /usr/tmp/stderr.$$)
+  rm -f /usr/tmp/stderr.$$
+  [ $last_error -ne 0 ] && {
+    [ $verbose -ne 0 ] && echo "ERROR"
+    [ "$last_stderr" ] && echo "> $last_stderr" >&2
+  }
+  [ $verbose -ne 0 ] && [ $last_error -eq 0 ] && echo "ok"
+}
+
+while [ "$*" ]; do
+  case "$1" in
+    --help | -h | -\?)
+      echo "Usage: $0 [options]"
+      echo ""
+      echo "Remove all ./configure and \`make\` products."
+      echo ""
+      echo "Options are"
+      echo ""
+      echo "  -h, -?, --help	print this screen and exit"
+      echo "  --version		print version and exit"
+      echo "  -v			be verbose"
+      echo ""
+      exit 0
+      ;;
+    --version)
+      cat "$script_dir/VERSION"
+      exit 0
+      ;;
+    -v)
+      verbose=1
+      ;;
+    *)
+      error "unknown option '$1'"
+  esac
+  shift
+done
+
+[ -f "$script_dir/Makefile" ] && try_run make -f "$script_dir/Makefile" clean
+try_run rm -f "$script_dir/Makefile"
+try_run rm -f "$script_dir/vars.cfg"
+
+exit 0
