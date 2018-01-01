@@ -5,7 +5,7 @@
 #! \stamp   2017-12-18 00:22:17 (UTC+01:00, DST+00:00)
 #! \project pkgtools: Tools for Maintaining Fedora Packages
 #! \license MIT (see ./LICENSE)
-#! \version See ../VERSION
+#! \version See ./VERSION
 #! \fdesc   Main script.
 #
 
@@ -240,7 +240,7 @@ require_command bzip2
 
 PKM_VERSION='@VERSION@'
 case "$PKM_VERSION" in
-  @*@) PKM_VERSION=$(cat ../VERSION)
+  @*@) PKM_VERSION=$(cat "$(dirname $0)/../VERSION")
 esac
 export PKM_VERSION
 
