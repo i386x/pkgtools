@@ -1,0 +1,571 @@
+#
+#! \file    ./src/pk-maintrc
+#! \author  Jiří Kučera, <jkucera AT redhat.com>
+#! \stamp   2018-01-01 02:20:19 (UTC+01:00, DST+00:00)
+#! \project pkgtools: Tools for Maintaining Fedora Packages
+#! \license MIT (see ./LICENSE)
+#! \version See ./VERSION
+#! \fdesc   pk-maint configuration.
+#
+
+require_command pwd
+
+###############################################################################
+# User configuration
+###############################################################################
+
+##
+# User settings.
+setvar USER_NAME ''
+setvar USER_LOGIN ''
+setvar USER_EMAIL1 ''
+setvar USER_EMAIL2 ''
+setvar USER_EMAIL3 ''
+setvar USER_EMAIL4 ''
+setvar USER_EMAIL5 ''
+
+###############################################################################
+# `new-file' command configuration
+###############################################################################
+
+##
+# newfile_at_guess_template_begin $1 $2
+#
+#   $1 - variable to store guessed template
+#   $2 - file name
+#
+# Guess a template for $2. Can be overriden by the user.
+function newfile_at_guess_template_begin() {
+  eval "$1=\"\""
+}
+
+##
+# newfile_on_guess_template_fail $1 $2
+#
+#   $1 - variable to store guessed template
+#   $2 - file name
+#
+# Guess a template for $2 if the previous methods have failed or issue an error.
+# Can be overriden by the user.
+function newfile_on_guess_template_fail() {
+  eval "$1=\"\""
+}
+
+##
+# newfile_at_guess_interpreter_begin $1 $2 $3
+#
+#   $1 - template type
+#   $2 - project root
+#   $3 - file
+#
+# Determine interpreter at early phase of newfile_guess_interpreter. Can be
+# overriden by the user.
+function newfile_at_guess_interpreter_begin() {
+  echo ""
+}
+
+##
+# newfile_on_guess_interpreter_fail $1 $2 $3
+#
+#   $1 - template type
+#   $2 - project root
+#   $3 - file
+#
+# Determine interpreter or raise an error if other attempts fails. Can be
+# overriden by the user.
+function newfile_on_guess_interpreter_fail() {
+  echo "/usr/bin/false"
+}
+
+##
+# newfile_guess_interpreter $1 $2 $3
+#
+#   $1 - template type
+#   $2 - project root
+#   $3 - file
+#
+# Determine interpreter for $3.
+function newfile_guess_interpreter() {
+  local T
+
+  T=$(newfile_at_guess_interpreter_begin "$@")
+  if [ "$T" ]; then
+    echo "$T"
+  else
+    case "$1" in
+      sh | SH) echo "/bin/sh" ;;
+      bash | BASH) echo "/bin/bash" ;;
+      py | PY | python | PYTHON) echo "/usr/bin/python" ;;
+      *) newfile_on_guess_interpreter_fail "$@"
+    esac
+  fi
+}
+
+##
+# newfile_guess_file_path $1 $2 $3
+#
+#   $1 - template type
+#   $2 - project root file or directory (i.e. Maintfile, .git)
+#   $3 - file
+#
+# Determine path to $3 relative to the project root file or directory location.
+# Can be overriden by the user.
+function newfile_guess_file_path() {
+  local D
+  local R
+
+  D=$(pwd)
+  R=$(search_upwards "$3" "$2")
+  if [ -z "$R" ]; then
+    echo "./$3"
+  else
+    R=$(compute_relpath "$D/$3" "$R")
+    echo "./$R"
+  fi
+}
+
+##
+# newfile_guess_author_name $1 $2 $3
+#
+#   $1 - template type
+#   $2 - project root
+#   $3 - file
+#
+# Determine the author's name. Can be overriden by the user.
+function newfile_guess_author_name() {
+  if [ "${ProjectVars[AUTHOR_NAME]}" ]; then
+    echo "${ProjectVars[AUTHOR_NAME]}"
+  elif [ "${ProjectVars[USER_NAME]}" ]; then
+    echo "${ProjectVars[USER_NAME]}"
+  else
+    echo "Name Surname"
+  fi
+}
+
+##
+# newfile_guess_author_name1 $1 $2 $3
+#
+#   $1 - template type
+#   $2 - project root
+#   $3 - file
+#
+# Determine the name of the 1st author. Can be overriden by the user.
+function newfile_guess_author_name1() {
+  if [ "${ProjectVars[AUTHOR1_NAME]}" ]; then
+    echo "${ProjectVars[AUTHOR1_NAME]}"
+  elif [ "${ProjectVars[USER_NAME]}" ]; then
+    echo "${ProjectVars[USER_NAME]}"
+  else
+    echo "Name Surname"
+  fi
+}
+
+##
+# newfile_guess_author_name2 $1 $2 $3
+#
+#   $1 - template type
+#   $2 - project root
+#   $3 - file
+#
+# Determine the name of the 2nd author. Can be overriden by the user.
+function newfile_guess_author_name2() {
+  if [ "${ProjectVars[AUTHOR2_NAME]}" ]; then
+    echo "${ProjectVars[AUTHOR2_NAME]}"
+  else
+    echo "Name Surname"
+  fi
+}
+
+##
+# newfile_guess_author_name3 $1 $2 $3
+#
+#   $1 - template type
+#   $2 - project root
+#   $3 - file
+#
+# Determine the name of the 3rd author. Can be overriden by the user.
+function newfile_guess_author_name3() {
+  if [ "${ProjectVars[AUTHOR3_NAME]}" ]; then
+    echo "${ProjectVars[AUTHOR3_NAME]}"
+  else
+    echo "Name Surname"
+  fi
+}
+
+##
+# newfile_guess_author_name4 $1 $2 $3
+#
+#   $1 - template type
+#   $2 - project root
+#   $3 - file
+#
+# Determine the name of the 4th author. Can be overriden by the user.
+function newfile_guess_author_name4() {
+  if [ "${ProjectVars[AUTHOR4_NAME]}" ]; then
+    echo "${ProjectVars[AUTHOR4_NAME]}"
+  else
+    echo "Name Surname"
+  fi
+}
+
+##
+# newfile_guess_author_name5 $1 $2 $3
+#
+#   $1 - template type
+#   $2 - project root
+#   $3 - file
+#
+# Determine the name of the 5th author. Can be overriden by the user.
+function newfile_guess_author_name5() {
+  if [ "${ProjectVars[AUTHOR5_NAME]}" ]; then
+    echo "${ProjectVars[AUTHOR5_NAME]}"
+  else
+    echo "Name Surname"
+  fi
+}
+
+##
+# newfile_guess_author_email $1 $2 $3
+#
+#   $1 - template type
+#   $2 - project root
+#   $3 - file
+#
+# Determine author's email address. Can be overriden by the user.
+function newfile_guess_author_email() {
+  if [ "${ProjectVars[AUTHOR_EMAIL]}" ]; then
+    echo "${ProjectVars[AUTHOR_EMAIL]}"
+  elif [ "${ProjectVars[USER_EMAIL1]}" ]; then
+    echo "${ProjectVars[USER_EMAIL1]}"
+  else
+    echo "login AT domain.com"
+  fi
+}
+
+##
+# newfile_guess_author_email1 $1 $2 $3
+#
+#   $1 - template type
+#   $2 - project root
+#   $3 - file
+#
+# Determine an email address of the 1st author. Can be overriden by the user.
+function newfile_guess_author_email1() {
+  if [ "${ProjectVars[AUTHOR1_EMAIL]}" ]; then
+    echo "${ProjectVars[AUTHOR1_EMAIL]}"
+  elif [ "${ProjectVars[USER_EMAIL1]}" ]; then
+    echo "${ProjectVars[USER_EMAIL1]}"
+  else
+    echo "login AT domain.com"
+  fi
+}
+
+##
+# newfile_guess_author_email2 $1 $2 $3
+#
+#   $1 - template type
+#   $2 - project root
+#   $3 - file
+#
+# Determine an email address of the 2nd author. Can be overriden by the user.
+function newfile_guess_author_email2() {
+  if [ "${ProjectVars[AUTHOR2_EMAIL]}" ]; then
+    echo "${ProjectVars[AUTHOR2_EMAIL]}"
+  else
+    echo "login AT domain.com"
+  fi
+}
+
+##
+# newfile_guess_author_email3 $1 $2 $3
+#
+#   $1 - template type
+#   $2 - project root
+#   $3 - file
+#
+# Determine an email address of the 3rd author. Can be overriden by the user.
+function newfile_guess_author_email3() {
+  if [ "${ProjectVars[AUTHOR3_EMAIL]}" ]; then
+    echo "${ProjectVars[AUTHOR3_EMAIL]}"
+  else
+    echo "login AT domain.com"
+  fi
+}
+
+##
+# newfile_guess_author_email4 $1 $2 $3
+#
+#   $1 - template type
+#   $2 - project root
+#   $3 - file
+#
+# Determine an email address of the 4th author. Can be overriden by the user.
+function newfile_guess_author_email4() {
+  if [ "${ProjectVars[AUTHOR4_EMAIL]}" ]; then
+    echo "${ProjectVars[AUTHOR4_EMAIL]}"
+  else
+    echo "login AT domain.com"
+  fi
+}
+
+##
+# newfile_guess_author_email5 $1 $2 $3
+#
+#   $1 - template type
+#   $2 - project root
+#   $3 - file
+#
+# Determine an email address of the 5th author. Can be overriden by the user.
+function newfile_guess_author_email5() {
+  if [ "${ProjectVars[AUTHOR5_EMAIL]}" ]; then
+    echo "${ProjectVars[AUTHOR5_EMAIL]}"
+  else
+    echo "login AT domain.com"
+  fi
+}
+
+##
+# newfile_guess_stamp $1 $2 $3
+#
+#   $1 - template type
+#   $2 - project root
+#   $3 - file
+#
+# Get the time date stamp string of $3. Can be overriden by the user.
+function newfile_guess_stamp() {
+  local F
+
+  F=$(eval_template NEWFILE_STAMP_FORMAT)
+  sh $PKM_PROG stamp "--file=$3" "--format=$F"
+}
+
+##
+# newfile_guess_project_desc $1 $2 $3
+#
+#   $1 - template type
+#   $2 - project root
+#   $3 - file
+#
+# Get the project description. Can be overriden by the user.
+function newfile_guess_project_desc() {
+  if [ "${ProjectVars[PROJECT]}" ]; then
+    echo "${ProjectVars[PROJECT]}"
+  else
+    echo "???"
+  fi
+}
+
+##
+# newfile_guess_license $1 $2 $3
+#
+#   $1 - template type
+#   $2 - project root
+#   $3 - file
+#
+# Get the project license. Can be overriden by the user.
+function newfile_guess_license() {
+  if [ "${ProjectVars[LICENSE]}" ]; then
+    echo "${ProjectVars[LICENSE]}"
+  else
+    echo "???"
+  fi
+}
+
+##
+# newfile_guess_version $1 $2 $3
+#
+#   $1 - template type
+#   $2 - project root
+#   $3 - file
+#
+# Get the project version. Can be overriden by the user.
+function newfile_guess_version() {
+  if [ "${ProjectVars[VERSION]}" ]; then
+    echo "${ProjectVars[VERSION]}"
+  else
+    echo "???"
+  fi
+}
+
+##
+# newfile_guess_file_desc $1 $2 $3
+#
+#   $1 - template type
+#   $2 - project root
+#   $3 - file
+#
+# Get the file description. Can be overriden by the user.
+function newfile_guess_file_desc() {
+  if [ "$NEWFILEOPT_FDESC" ]; then
+    echo "$NEWFILEOPT_FDESC"
+  else
+    echo "???"
+  fi
+}
+
+##
+# newfile_gen_header_template $1 $2 ... $n
+#
+#   $1, $2, ..., $n - commands with their arguments
+#
+# Assemble file header template and send it to stdout. The meaning of commands
+# together with their arguments is following:
+#
+#   -b        emit shebang line
+#   -u X      emit a line of the length 79 characters starting with X and ending
+#             with -*- coding: utf-8 -*-
+#   -c X      emit X
+#   -l X Y    emit field line beginning with X and ending with Y
+#   -F X      emit path to file line beginning with X
+#   -A X      emit author line beginning with X
+#   -T X      emit time date stamp line beginning with X
+#   -P X      emit project description line beginning with X
+#   -L X      emit project license line beginning with X
+#   -V X      emit project version line beginning with X
+#   -B X      emit file description (brief) line beginning with X
+#   -H X      emit all field lines, each line is starting with X
+#
+function newfile_gen_header_template() {
+  while [ "$*" ]; do
+    case "$1" in
+      -b)
+        echo "#!@INTERPRETER"
+        shift
+        ;;
+      -u)
+        text_to_right "$2" "-*- coding: utf-8 -*-" 79
+        shift 2
+        ;;
+      -c)
+        echo "$2"
+        shift 2
+        ;;
+      -l)
+        echo "$2!          $3"
+        shift 3
+        ;;
+      -F)
+        echo "$2! \\\\file    @FILE"
+        shift 2
+        ;;
+      -A)
+        echo "$2! \\\\author  @AUTHOR"
+        shift 2
+        ;;
+      -T)
+        echo "$2! \\\\stamp   @STAMP"
+        shift 2
+        ;;
+      -P)
+        echo "$2! \\\\project @PROJECT_DESC"
+        shift 2
+        ;;
+      -L)
+        echo "$2! \\\\license @LICENSE"
+        shift 2
+        ;;
+      -V)
+        echo "$2! \\\\version @VERSION"
+        shift 2
+        ;;
+      -B)
+        echo "$2! \\\\fdesc   @FILE_DESC"
+        shift 2
+        ;;
+      -H)
+        echo "$2! \\\\file    @FILE_PATH"
+        echo "$2! \\\\author  @AUTHOR"
+        echo "$2! \\\\stamp   @STAMP"
+        echo "$2! \\\\project @PROJECT_DESC"
+        echo "$2! \\\\license @LICENSE"
+        echo "$2! \\\\version @VERSION"
+        echo "$2! \\\\fdesc   @FILE_DESC"
+        shift 2
+        ;;
+    esac
+  done
+}
+
+##
+# newfile_template_args
+#
+# Return additional template arguments. Can be overriden by the user.
+function newfile_template_args() {
+  echo -n "AUTHOR=NEWFILE_AUTHOR_TEMPLATE"
+  echo -n " AUTHOR1=NEWFILE_AUTHOR1_TEMPLATE"
+  echo -n " AUTHOR2=NEWFILE_AUTHOR2_TEMPLATE"
+  echo -n " AUTHOR3=NEWFILE_AUTHOR3_TEMPLATE"
+  echo -n " AUTHOR4=NEWFILE_AUTHOR4_TEMPLATE"
+  echo    " AUTHOR5=NEWFILE_AUTHOR5_TEMPLATE"
+}
+
+config new-file INTERPRETER "\$(newfile_guess_interpreter \"\$T\" \"\$R\" \"\$F\")"
+config new-file FILE_PATH "\$(newfile_guess_file_path \"\$T\" \"\$R\" \"\$F\")"
+
+template NEWFILE_AUTHOR_TEMPLATE "@AUTHOR_NAME, <@AUTHOR_EMAIL>"
+template NEWFILE_AUTHOR1_TEMPLATE "@AUTHOR1_NAME, <@AUTHOR1_EMAIL>"
+template NEWFILE_AUTHOR2_TEMPLATE "@AUTHOR2_NAME, <@AUTHOR2_EMAIL>"
+template NEWFILE_AUTHOR3_TEMPLATE "@AUTHOR3_NAME, <@AUTHOR3_EMAIL>"
+template NEWFILE_AUTHOR4_TEMPLATE "@AUTHOR4_NAME, <@AUTHOR4_EMAIL>"
+template NEWFILE_AUTHOR5_TEMPLATE "@AUTHOR5_NAME, <@AUTHOR5_EMAIL>"
+template NEWFILE_AUTHORS_TEMPLATE "See ./AUTHORS"
+
+config new-file AUTHOR_NAME "\$(newfile_guess_author_name \"\$T\" \"\$R\" \"\$F\")"
+config new-file AUTHOR_EMAIL "\$(newfile_guess_author_email \"\$T\" \"\$R\" \"\$F\")"
+config new-file AUTHOR1_NAME "\$(newfile_guess_author_name1 \"\$T\" \"\$R\" \"\$F\")"
+config new-file AUTHOR1_EMAIL "\$(newfile_guess_author_email1 \"\$T\" \"\$R\" \"\$F\")"
+config new-file AUTHOR2_NAME "\$(newfile_guess_author_name2 \"\$T\" \"\$R\" \"\$F\")"
+config new-file AUTHOR2_EMAIL "\$(newfile_guess_author_email2 \"\$T\" \"\$R\" \"\$F\")"
+config new-file AUTHOR3_NAME "\$(newfile_guess_author_name3 \"\$T\" \"\$R\" \"\$F\")"
+config new-file AUTHOR3_EMAIL "\$(newfile_guess_author_email3 \"\$T\" \"\$R\" \"\$F\")"
+config new-file AUTHOR4_NAME "\$(newfile_guess_author_name4 \"\$T\" \"\$R\" \"\$F\")"
+config new-file AUTHOR4_EMAIL "\$(newfile_guess_author_email4 \"\$T\" \"\$R\" \"\$F\")"
+config new-file AUTHOR5_NAME "\$(newfile_guess_author_name5 \"\$T\" \"\$R\" \"\$F\")"
+config new-file AUTHOR5_EMAIL "\$(newfile_guess_author_email5 \"\$T\" \"\$R\" \"\$F\")"
+
+config new-file DATE_FMT "%(tm_year)04d-%(tm_mon)02d-%(tm_mday)02d"
+config new-file TIME_FMT "%(tm_hour)02d:%(tm_min)02d:%(tm_sec)02d"
+config new-file UTC_FMT "%(zone_sign)s%(zone_hour)02d:%(zone_min)02d"
+config new-file DST_FMT "%(dst_sign)s%(dst_hour)02d:%(dst_min)02d"
+
+template NEWFILE_STAMP_FORMAT "@DATE_FMT @TIME_FMT (UTC@UTC_FMT, DST@DST_FMT)"
+
+config new-file STAMP "\$(newfile_guess_stamp \"\$T\" \"\$R\" \"\$F\")"
+config new-file PROJECT_DESC "\$(newfile_guess_project_desc \"\$T\" \"\$R\" \"\$F\")"
+config new-file LICENSE "\$(newfile_guess_license \"\$T\" \"\$R\" \"\$F\")"
+config new-file VERSION "\$(newfile_guess_version \"\$T\" \"\$R\" \"\$F\")"
+config new-file FILE_DESC "\$(newfile_guess_file_desc \"\$T\" \"\$R\" \"\$F\")"
+
+template NEWFILE_C_HEADER_TEMPLATE \
+  "$(newfile_gen_header_template -c '/*' -H ' *' -c ' *' -c ' */')" \
+  $(newfile_template_args)
+template NEWFILE_MAKEFILE_HEADER_TEMPLATE \
+  "$(newfile_gen_header_template -c '#' -H '#' -c '#')" \
+  $(newfile_template_args)
+
+template NEWFILE_PLAIN_TEMPLATE ""
+
+template NEWFILE_C_TEMPLATE "\
+@HEADER
+" HEADER=NEWFILE_C_HEADER_TEMPLATE
+
+template NEWFILE_MAKEFILE_TEMPLATE "\
+@HEADER
+" HEADER=NEWFILE_MAKEFILE_HEADER_TEMPLATE
+
+template NEWFILE_MAINTFILE_TEMPLATE "\
+@HEADER
+
+# Project variables:
+setvar PROJECT ''
+setvar AUTHOR_NAME ''
+setvar AUTHOR_EMAIL ''
+setvar LICENSE ''
+setvar VERSION ''
+
+# Project maintaining tasks:
+" HEADER=NEWFILE_MAKEFILE_HEADER_TEMPLATE
+
+###############################################################################
+# `init' command configuration
+###############################################################################

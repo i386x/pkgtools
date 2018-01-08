@@ -20,6 +20,14 @@ PKM_DATA_DIR := @DATA_DIR@/$(PKM_PROG)
 PKM_CMD_DIR  := $(PKM_DATA_DIR)/cmd
 PKM_TEST_DIR := $(PKM_DATA_DIR)/t
 
+EDIT := -e 's|=@=VERSION=@=|@VERSION@|g' \
+	-e 's|=@=VERBOSE=@=|@VERBOSE@|g' \
+	-e 's|=@=DRY_RUN=@=|@DRY_RUN@|g' \
+	-e 's|=@=FORCE_RM=@=|@FORCE_RM@|g' \
+	-e 's|=@=BIN_DIR=@=|@BIN_DIR@|g' \
+	-e 's|=@=CFG_DIR=@=|@CFG_DIR@|g' \
+	-e 's|=@=DATA_DIR=@=|@DATA_DIR@|g'
+
 .PHONY: all install update uninstall clean
 
 all:
@@ -40,11 +48,13 @@ install:
 	$(CHECK) $(CFG_DIR)/$(PKM_RC)
 	$(MAKE) update
 
-update: build/$(PKM_PROG)
+update: build/stamp.py build/$(PKM_PROG)
 	$(INSTALL) -d $(PKM_DATA_DIR)
 	$(INSTALL) -d $(PKM_CMD_DIR)
 	$(INSTALL) -d $(PKM_TEST_DIR)
 	$(INSTALL) src/$(PKM_PROG)/cmd/init.sh $(PKM_CMD_DIR)/init.sh
+	$(INSTALL) src/$(PKM_PROG)/cmd/new-file.sh $(PKM_CMD_DIR)/new-file.sh
+	$(INSTALL) build/stamp.py $(PKM_CMD_DIR)/stamp.py
 	$(INSTALL) src/$(PKM_PROG)/t/$(PKM_PROG).t $(PKM_TEST_DIR)/$(PKM_PROG).t
 	$(INSTALL) -m644 src/$(PKM_RC) $(CFG_DIR)/$(PKM_RC)
 	$(INSTALL) build/$(PKM_PROG) $(BIN_DIR)/$(PKM_PROG)
@@ -55,14 +65,11 @@ uninstall:
 	$(UNISNTALL) $(BIN_DIR)/$(PKM_PROG)
 
 clean:
+	@rm_prog@ -f build/stamp.py
 	@rm_prog@ -f build/$(PKM_PROG)
 
+build/stamp.py: src/$(PKM_PROG)/cmd/stamp.py
+	@sed_prog@ $(EDIT) src/$(PKM_PROG)/cmd/stamp.py > $@
+
 build/$(PKM_PROG): src/$(PKM_PROG).sh
-	@sed_prog@ -e 's|=@=VERSION=@=|@VERSION@|g' \
-                   -e 's|=@=VERBOSE=@=|@VERBOSE@|g' \
-                   -e 's|=@=DRY_RUN=@=|@DRY_RUN@|g' \
-                   -e 's|=@=FORCE_RM=@=|@FORCE_RM@|g' \
-                   -e 's|=@=BIN_DIR=@=|@BIN_DIR@|g' \
-                   -e 's|=@=CFG_DIR=@=|@CFG_DIR@|g' \
-                   -e 's|=@=DATA_DIR=@=|@DATA_DIR@|g' \
-                   src/$(PKM_PROG).sh > $@
+	@sed_prog@ $(EDIT) src/$(PKM_PROG).sh > $@

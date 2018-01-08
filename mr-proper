@@ -22,10 +22,10 @@ error() {
 
 try_run() {
   [ $verbose -ne 0 ] && echo -n "Running $*: "
-  ("$@") >/dev/null 2>/usr/tmp/stderr.$$
+  ("$@") >/dev/null 2>/var/tmp/stderr.$$
   last_error=$?
-  last_stderr=$(cat /usr/tmp/stderr.$$)
-  rm -f /usr/tmp/stderr.$$
+  last_stderr=$(cat /var/tmp/stderr.$$)
+  rm -f /var/tmp/stderr.$$
   [ $last_error -ne 0 ] && {
     [ $verbose -ne 0 ] && echo "ERROR"
     [ "$last_stderr" ] && echo "> $last_stderr" >&2

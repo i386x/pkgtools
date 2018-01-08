@@ -9,10 +9,12 @@
 #! \fdesc   Main script.
 #
 
-PKM_NAME="$0"
-PKM_NAME="${PKM_NAME##*/}"
+unset CDPATH
+
+PKM_PROG="$0"
+PKM_NAME="${PKM_PROG##*/}"
 PKM_NAME="${PKM_NAME%.*}"
-export PKM_NAME
+export PKM_PROG PKM_NAME
 
 PKM_CFGDIR='@CFG_DIR@'
 case "$PKM_CFGDIR" in
@@ -187,6 +189,32 @@ function str_cutn() {
 }
 
 ##
+# text_to_right $1 $2 $3
+#
+#   $1 - current text
+#   $2 - text to be appended and justified
+#   $3 - maximum number of chars
+#
+# Return the string of the length $3 starting with $1 and ending with $2. The
+# space between $1 and $2 is filled by spaces. If the length of $1$2 is greater
+# or equal to $3, $1$2 is returned.
+function text_to_right() {
+  local L
+
+  L=$(expr length "$1$2")
+  if [ $L -ge $3 ]; then
+    echo "$1$2"
+  else
+    L=$(($3 - $L))
+    echo -n "$1"
+    for ((i = 0; i < $L; i++)); do
+      echo -n " "
+    done
+    echo "$2"
+  fi
+}
+
+##
 # find_command $1
 #
 #   $1 - command name
@@ -209,16 +237,302 @@ function require_command() {
   fi
 }
 
+relpath_resolver_='
+import sys
+import os
+
+bye = sys.exit
+argv = sys.argv[1:]
+
+def error(msg, *args):
+    sys.stderr.write("relpath_resolver: %s\n" % (msg % args))
+    bye(1)
+
+def p(msg, *args):
+    sys.stdout.write("%s\n" % (msg % args))
+
+if len(argv) < 2:
+    error("insufficient number of arguments")
+
+p(os.path.relpath(argv[0], argv[1]))
+'
+
 ##
-# setvar $1 $2
+# compute_relpath $1 $2
+#
+#   $1 - path
+#   $2 - start
+#
+# Return a path to $1 relative to $2 (wrapper around Python's os.path.relpath).
+function compute_relpath() {
+  python -c "${relpath_resolver_}" "$@"
+}
+
+upwards_crawler_='
+import sys
+import os
+
+up = lambda p: os.path.realpath(os.path.join(p, os.pardir))
+bye = sys.exit
+argv = sys.argv[1:]
+
+def error(msg, *args):
+    sys.stderr.write("upwards_crawler: %s\n" % (msg % args))
+    bye(1)
+
+def gotcha(what):
+    sys.stdout.write("%s\n" % what)
+    bye(0)
+
+if len(argv) < 2:
+    error("insufficient number of arguments")
+
+# Start point: path to (hypothetic) file or directory:
+p = os.path.realpath(argv[0])
+if not os.path.isdir(p):
+    p = up(p)
+
+# Crawl:
+f = argv[1]
+p_ = p
+while True:
+    pp = os.path.join(p, f)
+    if os.path.isdir(pp) or os.path.isfile(pp):
+        gotcha(p)
+    p = up(p)
+    if p == p_:
+        break
+    p_ = p
+'
+
+##
+# search_upwards $1 $2
+#
+#   $1 - path to start point
+#   $2 - item to be searched
+#
+# From $1 go to upwards in directory structure, looking for $2. If $2 is found,
+# return the absolute path to it. Otherwise, the result is empty.
+function search_upwards() {
+  python -c "${upwards_crawler_}" "$@"
+}
+
+##
+# setvar_ $1 $2
 #
 #   $1 - var name
 #   $2 - value
 #
 # Assign $2 to $1. This also defines $1.
-function setvar() {
+function setvar_() {
   eval "$1=\"$2\""
   export $1
+}
+
+##
+# setvar $1 $2
+#
+#   $1 - name
+#   $2 - value
+#
+# Set project variable.
+function setvar() {
+  ProjectVars["$1"]="$2"
+}
+
+##
+# config $1 $2 $3
+#
+#   $1 - command
+#   $2 - variable
+#   $3 - value (can be written as a code)
+#
+# Add a line of code that evaluates $3, add it to $2, and export $2, to $1's
+# config list. When $1 is invoked, it evaluates its config list (if this
+# feature is implemented in $1) which updates the environment of the recent
+# subshell.
+function config() {
+  local T
+
+  T="$2=\"$3\"; export $2${nl_sep}"
+  if [ -z "${ProjectConfig[$1]}" ]; then
+    ProjectConfig["$1"]="$T"
+  else
+    ProjectConfig["$1"]="${ProjectConfig[$1]}${T}"
+  fi
+}
+
+templater_prologue_='
+import sys
+import os
+import re
+
+var_re = re.compile("(@@|@[a-zA-Z_][a-zA-Z0-9_]*)")
+var_char_re = re.compile("[a-zA-Z_]")
+eq_re = re.compile("=")
+
+is_var = lambda x: len(x) >= 2 and x[0] == "@" and var_char_re.match(x[1])
+bye = sys.exit
+
+def error(msg, *args):
+    sys.stderr.write("templater: %s\n" % (msg % args))
+    bye(1)
+
+class Template:
+    def __init__(self, name, body):
+        self.name = name
+        self.body = var_re.split(body)
+        for i, x in enumerate(self.body):
+            if is_var(x):
+                y = "%s.%s" % (self.name, x[1:])
+                self.body[i] = "@%s" % y
+
+# Defined templates
+templates = {}
+# A map that maps a (qualified) template variable name to template name
+template_vars = {}
+
+def add_template(name, body, **kvargs):
+    templates[name] = Template(name, body)
+    for k in kvargs:
+        kk = "%s.%s" % (name, k)
+        template_vars[kk] = kvargs[k]
+
+'
+
+template_defs=""
+
+templater_='
+argv = sys.argv[1:]
+
+tape = []
+
+if argv:
+    tape.append("@%s" % argv[0])
+    argv = argv[1:]
+
+tenv = dict([eq_re.split(x, 1) for x in argv])
+
+emit = sys.stdout.write
+
+# Template variables resolution:
+#
+#   1. if a template variable is qualified, i.e. if it is of the form X.Y, then
+#      (a) is X.Y in tenv?
+#          - yes -> substitute it for tenv[X.Y]
+#          - no -> go to (b)
+#      (b) is X.Y in os.environ?
+#          - yes -> substitute it for os.environ[X.Y]
+#          - no -> go to (c)
+#      (c) is X.Y in template_vars?
+#          - yes -> substitute it for templates[template_vars[X.Y]]
+#          - no -> go to (d)
+#      (d) is Y in tenv?
+#          - yes -> substitute it for tenv[Y]
+#          - no -> go to (e)
+#      (e) is Y in os.environ?
+#          - yes -> substitute it for os.environ[Y]
+#          - no -> error
+#   2. if a template variable is not qualified, i.e. if it is of the form X,
+#      then
+#      (a) is X in tenv?
+#          - yes -> substitute it for tenv[X]
+#          - no -> go to (b)
+#      (b) is X in os.environ?
+#          - yes -> substitute it for os.environ[X]
+#          - no -> go to (c)
+#      (c) is X in templates?
+#          - yes -> substitute it for templates[X]
+#          - no -> error
+while tape:
+    t = tape.pop(0)
+    if not t:
+        pass
+    elif t == "@@":
+        emit("@")
+    elif is_var(t):
+        t = t[1:]
+        if "." in t:
+            v = t.split(".")[-1]
+            if t in tenv:
+                emit(tenv[t])
+            elif t in os.environ:
+                emit(os.environ[t])
+            elif t in template_vars:
+                t = template_vars[t]
+                if not t in templates:
+                    error("Undefined template %s!", t)
+                t = templates[t]
+                tape = t.body + tape
+            elif v in tenv:
+                emit(tenv[v])
+            elif v in os.environ:
+                emit(os.environ[v])
+            else:
+                error("Failed to substitute %s!", t)
+        else:
+            if t in tenv:
+                emit(tenv[t])
+            elif t in os.environ:
+                emit(os.environ[t])
+            elif t in templates:
+                t = templates[t]
+                tape = t.body + tape
+            else:
+                error("Failed to substitute %s!", t)
+    else:
+        emit(t)
+'
+
+##
+# template $1 $2 $3 $4 ... $n
+#
+#   $1 - template name
+#   $2 - template definition
+#   $3, $4, ..., $n - TEMPLATE_VAR=TEMPLATE_NAME options
+#
+# Add a new template to the list of templates. By options $3 to $n are defined
+# binds of template variables to another templates.
+function template() {
+  local K
+  local V
+  local T
+  local D
+
+  T="$1"
+  D="$2"
+  shift 2
+
+  [ -z "$T" ] && error "$FUNCNAME: missing template name"
+  expr "$T" : '^[a-zA-Z_][a-zA-Z0-9_]*$' >/dev/null 2>&1 \
+  || error "$FUNCNAME: ill-formed template name '$T'"
+
+  T="add_template(\"$T\", \"\"\"$D\"\"\""
+  for P; do
+    K=$(expr "$P" : '^\([a-zA-Z_][a-zA-Z0-9_]*\)=[a-zA-Z_][a-zA-Z0-9_]*$')
+    [ -z "$K" ] && error "$FUNCNAME: ill-formed KEY=VALUE option '$P'"
+    V=$(expr "$P" : '^.*=\(.*\)$')
+    T="$T, $K = \"$V\""
+  done
+  T="$T)"
+  template_defs="${template_defs}${T}${nl_sep}"
+}
+
+##
+# eval_template $1 $2 ... $n
+#
+#   $1 - template name
+#   $2, $3, ..., $n - environment definition (VAR=VALUE)
+#
+# Evaluate template within the given environment and send the result to the
+# stdout.
+function eval_template() {
+  local A
+
+  for P; do
+    A="$A '$P'"
+  done
+  eval "python -c '${templater_prologue_}${template_defs}${templater_}' $A"
 }
 
 ##
@@ -232,11 +546,13 @@ require_command head
 require_command cut
 require_command tr
 require_command expr
+require_command sed
 require_command mkdir
 require_command ls
 require_command tar
 require_command gzip
 require_command bzip2
+require_command python
 
 PKM_VERSION='@VERSION@'
 case "$PKM_VERSION" in
@@ -244,8 +560,12 @@ case "$PKM_VERSION" in
 esac
 export PKM_VERSION
 
-if [ -f "${PKM_CFGDIR}/${PKM_NAME}/${PKM_NAME}rc" ]; then
-  source "${PKM_CFGDIR}/${PKM_NAME}/${PKM_NAME}rc"
+declare -A ProjectVars
+declare -A ProjectConfig
+declare -A ProjectDeps
+
+if [ -f "${PKM_CFGDIR}/${PKM_NAME}rc" ]; then
+  source "${PKM_CFGDIR}/${PKM_NAME}rc"
 fi
 if [ -f "~/.${PKM_NAME}rc" ]; then
   source "~/.${PKM_NAME}rc"
@@ -402,15 +722,15 @@ function rawdefopt() {
   fi
 
   if [ "$4" = "+" ] || [ "$4" = "(+)" ]; then
-    setvar ${OPTVAR_PREFIX}$T 1
+    setvar_ ${OPTVAR_PREFIX}$T 1
   else # "-" || "(-)"
-    setvar ${OPTVAR_PREFIX}$T 0
+    setvar_ ${OPTVAR_PREFIX}$T 0
   fi
 
   if [ "$5" = "+" ]; then
-    eval "${OPTSTORAGE_PREFIX}_long_opts_map[\$2]=\"setvar ${OPTVAR_PREFIX}\$T 1\""
+    eval "${OPTSTORAGE_PREFIX}_long_opts_map[\$2]=\"setvar_ ${OPTVAR_PREFIX}\$T 1\""
   else
-    eval "${OPTSTORAGE_PREFIX}_long_opts_map[\$2]=\"setvar ${OPTVAR_PREFIX}\$T 0\""
+    eval "${OPTSTORAGE_PREFIX}_long_opts_map[\$2]=\"setvar_ ${OPTVAR_PREFIX}\$T 0\""
   fi
 
   if [ ! "$1" = "-" ]; then
@@ -454,7 +774,7 @@ function rawdefkvopt() {
 
   T=$(echo $2 | tr 'a-z-' 'A-Z_')
 
-  setvar ${OPTVAR_PREFIX}$T "$4"
+  setvar_ ${OPTVAR_PREFIX}$T "$4"
 
   eval "${OPTSTORAGE_PREFIX}_long_kvopts_map[\$2]=\"\$T\""
 
@@ -513,7 +833,7 @@ function handle_long_kvoption() {
   if [ -z "$T" ]; then
     error "--$K is not key-value option"
   fi
-  setvar ${OPTVAR_PREFIX}$T "$V"
+  setvar_ ${OPTVAR_PREFIX}$T "$V"
 }
 
 ##
@@ -567,7 +887,7 @@ function handle_short_kvoption() {
   if [ -z "$V" ]; then
     need_arg="$O"
   else
-    setvar ${OPTVAR_PREFIX}$O "$V"
+    setvar_ ${OPTVAR_PREFIX}$O "$V"
   fi
 }
 
@@ -632,7 +952,7 @@ function handle_short_option() {
 # Set $? to 0 if `need_arg' was handled. Otherwise, set $? to 1.
 function handle_need_arg() {
   if [ "$need_arg" ]; then
-    setvar ${OPTVAR_PREFIX}$need_arg "$1"
+    setvar_ ${OPTVAR_PREFIX}$need_arg "$1"
     need_arg=""
     true
   else
@@ -671,18 +991,32 @@ function cmd() {
 #
 # Define a command, where command is a script stored in $3.
 function fcmd() {
-  cmd "$1" "$2" "${PKM_DATADIR}/${PKM_NAME}/cmd/$3"
+  local T
+
+  # Determine interpreter based on suffix:
+  case "$3" in
+    *.sh) T="sh " ;;
+    *.py) T="python " ;;
+    *) T=""
+  esac
+  cmd "$1" "$2" "${T}${PKM_DATADIR}/${PKM_NAME}/cmd/$3"
 }
 
 ##
-# icmd $1 $2 $3
+# icmd $1 $2 $3 [$4]
 #
 #   $1, $2 - as in `cmd'
-#   $3 - command as a function
+#   $3 - command as a function or a file name where command is defined
+#   $4 - if $3 is existing file, $4 is a name of its entry point
 #
-# Define a command, where command is a function $3.
+# Define a command, where command is a function.
 function icmd() {
-  cmd "$1" "$2" "$3"
+  if [ -f "${PKM_DATADIR}/${PKM_NAME}/cmd/$3" ]; then
+    source "${PKM_DATADIR}/${PKM_NAME}/cmd/$3"
+    cmd "$1" "$2" "$4"
+  else
+    cmd "$1" "$2" "$3"
+  fi
 }
 
 ##
@@ -748,7 +1082,7 @@ function process_args() {
 #
 # Display help lines for `help' builtin command.
 function help_usage() {
-  echo "help: help [options] COMMAND"
+  echo "$PKM_CMD: $PKM_CMD [options] COMMAND"
   echo ""
   echo "Show COMMAND helplines; options are"
   echo ""
@@ -768,13 +1102,15 @@ function help_cmd() {
 
   make_optstorage
   defopt h,? help "print this screen and exit"
+  defopt - version "${tab_sep}print version and exit"
 
   process_args "$@"
   shift $nargs
 
   [ $HELPOPT_HELP -ne 0 ] && { help_usage; exit 0; }
-  [ -z "$1" ] && error "help: expected command"
-  [ -z "${commands[$1]}" ] && error "help: unknown command $1"
+  [ $HELPOPT_VERSION -ne 0 ] && { echo $PKM_VERSION; exit 0; }
+  [ -z "$1" ] && error "expected command"
+  [ -z "${commands[$1]}" ] && error "unknown command $1"
 
   (${commands[$1]} --help)
 }
@@ -784,7 +1120,7 @@ function help_cmd() {
 #
 # Display help lines for `selftest' builtin command.
 function selftest_usage() {
-  echo "selftest: selftest [options]"
+  echo "$PKM_CMD: $PKM_CMD [options]"
   echo ""
   echo "Run tests for pk-maint; options are"
   echo ""
@@ -804,19 +1140,89 @@ function selftest_cmd() {
 
   make_optstorage
   defopt h,? help "print this screen and exit"
+  defopt - version "${tab_sep}print the vesrion and exit"
 
   process_args "$@"
   shift $nargs
 
   [ $SELFTESTOPT_HELP -ne 0 ] && { selftest_usage; exit 0; }
+  [ $SELFTESTOPT_VERSION -ne 0 ] && { echo $PKM_VERSION; exit 0; }
 
   source "${PKM_DATADIR}/${PKM_NAME}/t/${PKM_NAME}.t" && runtests
 }
 
+##
+# edit_usage
+#
+# Display help lines for `edit' builtin command.
+function edit_usage() {
+  echo "$PKM_CMD: $PKM_CMD [options] VAR1=VAL1 VAR2=VAL2 ... VARN=VALN"
+  echo ""
+  echo "Read the input file, edit it, and store it to the output file or send"
+  echo "it to the stdout; options are"
+  echo ""
+  eval "echo \"\$${OPTSTORAGE_PREFIX}_helplines\""
+  echo ""
+}
+
+##
+# edit_cmd $1 $2 ... $N
+#
+#   $1, $2, ..., $N - arguments
+#
+# `edit' builtin command.
+function edit_cmd() {
+  local C
+  local D
+  local T
+  local U
+
+  OPTVAR_PREFIX='EDITOPT_'
+  OPTSTORAGE_PREFIX='EDIT'
+
+  make_optstorage
+  kvopt a at-sign "set the '@' escape sequence" '=@=' STR
+  kvopt d delim "set the delimiter between sed's s-command parts" '|' DLM
+  defopt h,? help "print this screen and exit"
+  kvopt i input "set the input file" "" FILE
+  kvopt o output "set the output file (default is stdout)" "" FILE
+  defopt - version "${tab_sep}print the version and exit"
+
+  process_args "$@"
+  shift $nargs
+
+  [ $EDITOPT_HELP -ne 0 ] && { edit_usage; exit 0; }
+  [ $EDITOPT_VERSION -ne 0 ] && { echo $PKM_VERSION; exit 0; }
+  [ -z "$EDITOPT_INPUT" ] && error "missing --input"
+
+  C="sed"
+  D="$EDITOPT_DELIM"
+  for V; do
+    case "$V" in
+      *=*)
+        T=$(expr "$V" : '^\([a-zA-Z_][a-zA-Z0-9_]*\)=.*$')
+        [ -z "$T" ] && error "ill-formed VAR=VALUE argument '$V'"
+        U=$(expr "$V" : '^.*=\(.*\)$')
+        C="$C -e 's${D}@$T@${D}$U${D}g'"
+        ;;
+      *)
+        error "ill-formed VAR=VALUE argument '$V'"
+    esac
+  done
+  C="cat \"$EDITOPT_INPUT\" | $C -e 's${D}$EDITOPT_AT_SIGN${D}@${D}g'"
+  [ "$EDITOPT_OUTPUT" ] && { C="$C > \"$EDITOPT_OUTPUT\""; }
+  eval "$C"
+}
+
 defopt h,? help "print this screen and exit"
 defopt - version "${tab_sep}print version and exit"
+icmd edit "${tab_sep}edit the given input file and send it to the given output" edit_cmd
 icmd help "${tab_sep}display help about selected command" help_cmd
+icmd new-file "create a new source file" new-file.sh newfile_cmd
 icmd selftest "run tests for this script" selftest_cmd
+fcmd stamp "${tab_sep}get the time date stamp" stamp.py
+
+# TODO: Load Maintfile here.
 
 process_args "$@"
 shift $nargs

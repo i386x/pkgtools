@@ -80,10 +80,10 @@ guess_file_mode() {
 try_run() {
   last_command="$*"
   [ $DRY_RUN -eq 0 ] && {
-    ("$@") >/dev/null 2>/usr/tmp/stderr.$$
+    ("$@") >/dev/null 2>/var/tmp/stderr.$$
     last_error=$?
-    last_stderr=$($cat_prog /usr/tmp/stderr.$$)
-    $rm_prog -f /usr/tmp/stderr.$$
+    last_stderr=$($cat_prog /var/tmp/stderr.$$)
+    $rm_prog -f /var/tmp/stderr.$$
   }
 }
 

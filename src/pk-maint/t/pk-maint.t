@@ -48,11 +48,11 @@ test_error() {
   echo "  Testing 'error'..."
   F=0
 
-  (error "XXX") 1> /usr/tmp/stdout.$$ 2> /usr/tmp/stderr.$$
+  (error "XXX") 1> /var/tmp/stdout.$$ 2> /var/tmp/stderr.$$
   E=$?
-  T=$(cat /usr/tmp/stdout.$$)
-  U=$(cat /usr/tmp/stderr.$$); U=$(expr "$U" : '.*\(XXX\).*')
-  rm /usr/tmp/stdout.$$ /usr/tmp/stderr.$$
+  T=$(cat /var/tmp/stdout.$$)
+  U=$(cat /var/tmp/stderr.$$); U=$(expr "$U" : '.*\(XXX\).*')
+  rm /var/tmp/stdout.$$ /var/tmp/stderr.$$
 
   [ $E -eq 1 ] || { echo "  > Expected exit code 1"; F=1; }
   [ -z "$T" ] || { echo "  > 'error' writes to stdout"; F=1; }
@@ -72,11 +72,11 @@ test_warning() {
   echo "  Testing 'warning'..."
   F=0
 
-  (warning "XXX") 1> /usr/tmp/stdout.$$ 2> /usr/tmp/stderr.$$
+  (warning "XXX") 1> /var/tmp/stdout.$$ 2> /var/tmp/stderr.$$
   E=$?
-  T=$(cat /usr/tmp/stdout.$$)
-  U=$(cat /usr/tmp/stderr.$$); U=$(expr "$U" : '.*\(XXX\).*')
-  rm /usr/tmp/stdout.$$ /usr/tmp/stderr.$$
+  T=$(cat /var/tmp/stdout.$$)
+  U=$(cat /var/tmp/stderr.$$); U=$(expr "$U" : '.*\(XXX\).*')
+  rm /var/tmp/stdout.$$ /var/tmp/stderr.$$
 
   [ $E -eq 0 ] || { echo "  > Expected exit code 0"; F=1; }
   [ -z "$T" ] || { echo "  > 'warning' writes to stdout"; F=1; }
@@ -96,11 +96,11 @@ test_inform() {
   echo "  Testing 'inform'..."
   F=0
 
-  (inform "XXX") 1> /usr/tmp/stdout.$$ 2> /usr/tmp/stderr.$$
+  (inform "XXX") 1> /var/tmp/stdout.$$ 2> /var/tmp/stderr.$$
   E=$?
-  T=$(cat /usr/tmp/stdout.$$); T=$(expr "$T" : '.*\(XXX\).*')
-  U=$(cat /usr/tmp/stderr.$$)
-  rm /usr/tmp/stdout.$$ /usr/tmp/stderr.$$
+  T=$(cat /var/tmp/stdout.$$); T=$(expr "$T" : '.*\(XXX\).*')
+  U=$(cat /var/tmp/stderr.$$)
+  rm /var/tmp/stdout.$$ /var/tmp/stderr.$$
 
   [ $E -eq 0 ] || { echo "  > Expected exit code 0"; F=1; }
   [ "$T" = "XXX" ] || { echo "  > 'inform' does not write to stdout"; F=1; }
@@ -301,16 +301,51 @@ test_str_cutn() {
 }
 add_test str_cutn
 
-test_setvar() {
+test_text_to_right() {
   local T
   local F
 
-  echo "  Testing 'setvar'..."
+  echo "  Testing 'text_to_right'..."
+  F=0
+
+  T=$(text_to_right "" "" 0)
+  [ ",$T," = ",," ] || { echo "  > 'text_to_right' should return empty string"; F=1; }
+  T=$(text_to_right "" "" 1)
+  [ ",$T," = ", ," ] || { echo "  > 'text_to_right' should return one space"; F=1; }
+  T=$(text_to_right "" "" 10)
+  [ ",$T," = ",          ," ] || { echo "  > 'text_to_right' should return 10 spaces"; F=1; }
+  T=$(text_to_right "" "x" 10)
+  [ ",$T," = ",         x," ] || { echo "  > 'text_to_right' should return '         x'"; F=1; }
+  T=$(text_to_right "" "xyz" 10)
+  [ ",$T," = ",       xyz," ] || { echo "  > 'text_to_right' should return '       xyz'"; F=1; }
+  T=$(text_to_right "A" "" 10)
+  [ ",$T," = ",A         ," ] || { echo "  > 'text_to_right' should return 'A         '"; F=1; }
+  T=$(text_to_right "ABC" "" 10)
+  [ ",$T," = ",ABC       ," ] || { echo "  > 'text_to_right' should return 'ABC       '"; F=1; }
+  T=$(text_to_right "A" "x" 10)
+  [ ",$T," = ",A        x," ] || { echo "  > 'text_to_right' should return 'A        x'"; F=1; }
+  T=$(text_to_right "ABC" "xyz" 10)
+  [ ",$T," = ",ABC    xyz," ] || { echo "  > 'text_to_right' should return 'ABC    xyz'"; F=1; }
+  T=$(text_to_right "ABCDEF" "wxyz" 10)
+  [ ",$T," = ",ABCDEFwxyz," ] || { echo "  > 'text_to_right' should return 'ABCDEFwxyz'"; F=1; }
+  T=$(text_to_right "ABCDEF" "uvwxyz" 10)
+  [ ",$T," = ",ABCDEFuvwxyz," ] || { echo "  > 'text_to_right' should return 'ABCDEFuvwxyz'"; F=1; }
+
+  [ $F -ne 0 ] && { echo "  FAILED"; PK_MAINT_FAILS=$(($PK_MAINT_FAILS + 1)); }
+  [ $F -eq 0 ] && { echo "  ...OK"; PK_MAINT_SUCCEEDS=$(($PK_MAINT_SUCCEEDS + 1)); }
+}
+add_test text_to_right
+
+test_setvar_() {
+  local T
+  local F
+
+  echo "  Testing 'setvar_'..."
   F=0
 
   # Test if `FOO' is unset:
   [ "${FOO-x}" = "x" ] || { echo "  > 'FOO' should be unset"; F=1; }
-  T=FOO; setvar $T 42
+  T=FOO; setvar_ $T 42
   # Now, `FOO' should be `42':
   [ "${FOO-x}" = "42" ] || { echo "  > 'FOO' should be 42"; F=1; }
   # Unset `FOO':
@@ -321,4 +356,4 @@ test_setvar() {
   [ $F -ne 0 ] && { echo "  FAILED"; PK_MAINT_FAILS=$(($PK_MAINT_FAILS + 1)); }
   [ $F -eq 0 ] && { echo "  ...OK"; PK_MAINT_SUCCEEDS=$(($PK_MAINT_SUCCEEDS + 1)); }
 }
-add_test setvar
+add_test setvar_
