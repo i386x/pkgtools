@@ -162,7 +162,7 @@ done
 
   [ $verbose -ne 0 ] && echo -n "creating '$1' with mode $mode: "
   [ $DRY_RUN -ne 0 ] && [ $verbose -ne 0 ] && echo "ok"
-  try_run $mkdir_prog "$1"
+  try_run $mkdir_prog -p "$1"
   [ $DRY_RUN -ne 0 ] && [ "$last_command" ] && echo "[dry-run]\$ $last_command"
   [ $last_error -ne 0 ] && {
     [ $verbose -ne 0 ] && echo "failed"
