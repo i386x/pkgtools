@@ -64,7 +64,7 @@ function init_cmd() {
   fi
 
   # 2. if there is no Maintfile, create it:
-  eval "sh $PKM_PROG new-file $V -r.git -TMaintfile -d\"Project maintenance script\" Maintfile"; E=$?
+  eval "sh $PKM_PROG new-file $V -r.git -TMaintfile -d\"Project maintenance script.\" Maintfile"; E=$?
   [ $E -ne 0 ] && exit $E
 
   # 3. if there is no .gitignore, create it:
