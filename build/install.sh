@@ -195,7 +195,7 @@ try_run $cp_prog "$1" "$2"
   [ "$last_stderr" ] && echo $last_stderr >&2
   exit $last_error
 }
-try_run $chmod_prog $mode "$1"
+try_run $chmod_prog $mode "$2"
 [ $DRY_RUN -ne 0 ] && [ "$last_command" ] && echo "[dry-run]\$ $last_command"
 [ $last_error -ne 0 ] && {
   [ $verbose -ne 0 ] && echo "failed"

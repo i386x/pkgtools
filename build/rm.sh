@@ -13,13 +13,6 @@ script_dir=$(dirname $0)
 
 vars_cfg="$script_dir/../vars.cfg"
 
-nl_sep='
-'
-
-last_command=""
-last_error=0
-last_stderr=""
-
 error() {
   echo "$0: error: $*" 1>&2
   exit 1
@@ -29,13 +22,12 @@ error() {
 . $vars_cfg
 
 try_run() {
-  last_command="$*"
-  [ $DRY_RUN -eq 0 ] && {
-    ("$@") >/dev/null 2>/var/tmp/stderr.$$
-    last_error=$?
-    last_stderr=$($cat_prog /var/tmp/stderr.$$)
-    $rm_prog -f /var/tmp/stderr.$$
-  }
+  if [ $DRY_RUN -ne 0 ]; then
+    echo "[dry-run]\$ $*"
+  else
+    echo "Running '$*'"
+    eval "$@"
+  fi
 }
 
 try_remove() {
@@ -47,25 +39,16 @@ try_remove() {
     O=-i
   fi
   try_run $rm_prog $O "$@"
-  [ $DRY_RUN -ne 0 ] && echo "[dry-run]\$ $last_command"
-  [ $DRY_RUN -eq 0 ] && {
-    echo -n "Running '$last_command': "
-    [ $last_error -ne 0 ] && {
-      echo "ERROR"
-      [ "$last_stderr" ] && echo "> $last_stderr"
-    }
-    [ $last_error -eq 0 ] && echo "ok"
-  }
 }
 
 remove_dir_content() {(
-  L=$($ls_prog -a1)
-  oIFS=$IFS
-  IFS="$nl_sep"
+  [ -z "$1" ] && { echo "$FUNCNAME: missing name of directory (skipped)"; exit 0; }
+  L=$($ls_prog -a1 "$1")
   for x in $L; do
-    remove "$x"
+    if [ "$x" ] && [ "$x" != "." ] && [ "$x" != ".." ]; then
+      remove "$1/$x"
+    fi
   done
-  IFS=$oIFS
 )}
 
 remove_dir() {

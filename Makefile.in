@@ -62,7 +62,7 @@ update: build/stamp.py build/$(PKM_PROG)
 uninstall:
 	$(UNINSTALL) $(PKM_DATA_DIR)
 	$(UNINSTALL) $(CFG_DIR)/$(PKM_RC)
-	$(UNISNTALL) $(BIN_DIR)/$(PKM_PROG)
+	$(UNINSTALL) $(BIN_DIR)/$(PKM_PROG)
 
 clean:
 	@rm_prog@ -f build/stamp.py
