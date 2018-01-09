@@ -551,6 +551,7 @@ require_command tr
 require_command expr
 require_command sed
 require_command mkdir
+require_command pwd
 require_command ls
 require_command tar
 require_command gzip
@@ -570,8 +571,8 @@ declare -A ProjectDeps
 if [ -f "${PKM_CFGDIR}/${PKM_NAME}rc" ]; then
   source "${PKM_CFGDIR}/${PKM_NAME}rc"
 fi
-if [ -f "~/.${PKM_NAME}rc" ]; then
-  source "~/.${PKM_NAME}rc"
+if [ -f "${HOME}/.${PKM_NAME}rc" ]; then
+  source "${HOME}/.${PKM_NAME}rc"
 fi
 
 OPTVAR_PREFIX='OPT_'
@@ -1271,10 +1272,10 @@ function default() {
   true
 }
 
-[ -f "~+/Maintfile" ] && {
-  source "~+/Maintfile"
+[ -f "$(pwd)/Maintfile" ] && {
+  source "$(pwd)/Maintfile"
   PKM_HAS_MAINTFILE=1
-  extract_targets_ "~+/Maintfile"
+  extract_targets_ "$(pwd)/Maintfile"
   targets_['default']="default"
 }
 
