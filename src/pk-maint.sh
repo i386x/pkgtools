@@ -33,6 +33,9 @@ nl_sep='
 tab_sep='	'
 export nl_sep tab_sep
 
+PKM_HAS_MAINTFILE=0
+export PKM_HAS_MAINTFILE
+
 PKM_CMD=""
 export PKM_CMD
 
@@ -1006,17 +1009,19 @@ function fcmd() {
 # icmd $1 $2 $3 [$4]
 #
 #   $1, $2 - as in `cmd'
-#   $3 - command as a function or a file name where command is defined
-#   $4 - if $3 is existing file, $4 is a name of its entry point
+#   $3 - command name
 #
-# Define a command, where command is a function.
+# Define a command, where command is a function. If $3 is an existing file,
+# use it and as a command treat $3'_cmd function from that file, where $3' has
+# '-' and file extension suffix removed.
 function icmd() {
-  if [ -f "${PKM_DATADIR}/${PKM_NAME}/cmd/$3" ]; then
-    source "${PKM_DATADIR}/${PKM_NAME}/cmd/$3"
-    cmd "$1" "$2" "$4"
-  else
-    cmd "$1" "$2" "$3"
-  fi
+  local C="$3"
+
+  [ -f "${PKM_DATADIR}/${PKM_NAME}/cmd/$C" ] && {
+    source "${PKM_DATADIR}/${PKM_NAME}/cmd/$C"
+    C=$(echo "$C" | sed -e 's/\..*$//g; s/-//g; s/$/_cmd/g')
+  }
+  cmd "$1" "$2" "$C"
 }
 
 ##
@@ -1024,7 +1029,7 @@ function icmd() {
 #
 # Print this script usage to stdout.
 function usage() {
-  echo "Usage: $PKM_NAME [options] COMMAND [command options]"
+  echo "Usage: $PKM_NAME [options] [COMMAND [command options]]"
   echo ""
   echo "where options are"
   echo ""
@@ -1039,6 +1044,15 @@ function usage() {
   echo "  $PKM_NAME help command"
   echo ""
   echo "or simply: $PKM_NAME command --help"
+  echo ""
+  echo "If COMMAND is not present and Maintfile is loaded, COMMAND is treated"
+  echo "as 'default' with no options. If Maintfile is not loaded, COMMAND is"
+  echo "treated as a missing command and no action is taken."
+  echo ""
+  echo "If COMMAND is present, it is first treated as builtin command. Otherwise,"
+  echo "if Maintfile is loaded, it is treated as a Maintfile target. Otherwise,"
+  echo "COMMAND is unknown."
+  echo ""
 }
 
 need_arg=""
@@ -1218,21 +1232,77 @@ defopt h,? help "print this screen and exit"
 defopt - version "${tab_sep}print version and exit"
 icmd edit "${tab_sep}edit the given input file and send it to the given output" edit_cmd
 icmd help "${tab_sep}display help about selected command" help_cmd
-icmd new-file "create a new source file" new-file.sh newfile_cmd
+icmd init "${tab_sep}initialize project directory" init.sh
+icmd new-file "create a new source file" new-file.sh
 icmd selftest "run tests for this script" selftest_cmd
 fcmd stamp "${tab_sep}get the time date stamp" stamp.py
 
-# TODO: Load Maintfile here.
+declare -A targets_
+
+##
+# extract_targets_ $1
+#
+#   $1 - Maintfile
+#
+# Extract targets names from $1. As a target is considered every function of the
+# form:
+#
+#   name() {
+#
+# where `name' must be settled on the line beginning and there can be any
+# number of spaces around `(', `)', and `{'.
+function extract_targets_() {
+  local L
+
+  L=$( \
+    cat "$1" | grep -e '^[a-zA-Z_][a-zA-Z0-9_]*[ \t]*[(][ \t]*[)][ \t]*[{].*' \
+             | sed  -e 's/^\([a-zA-Z_][a-zA-Z0-9_]*\).*/\1/g' \
+  )
+  for l in $L; do
+    targets_[$l]="$l"
+  done
+}
+
+##
+# default
+#
+# Predefined Maintfile default target.
+function default() {
+  true
+}
+
+[ -f "~+/Maintfile" ] && {
+  source "~+/Maintfile"
+  PKM_HAS_MAINTFILE=1
+  extract_targets_ "~+/Maintfile"
+  targets_['default']="default"
+}
 
 process_args "$@"
 shift $nargs
 
 [ $OPT_HELP -ne 0 ] && { usage; exit 0; }
 [ $OPT_VERSION -ne 0 ] && { echo $PKM_VERSION; exit 0; }
-[ -z "$1" ] && error "expected command"
-[ -z "${commands[$1]}" ] && error "unknown command $1"
 
-PKM_CMD="$1"
-shift
+if [ -z "$1" ]; then
+  [ $PKM_HAS_MAINTFILE -eq 0 ] && exit 0
+  PKM_CMD='default'
+else
+  PKM_CMD="$1"
+  shift
+fi
 
-(${commands[$PKM_CMD]} "$@")
+if [ "${commands[$PKM_CMD]}" ]; then
+  (${commands[$PKM_CMD]} "$@")
+elif [ $(type -t "$PKM_CMD") = 'function' ] && [ "${targets_[$PKM_CMD]}" ]; then
+  # This "targets_" workaround sanitize arbitrary function execution from
+  # Maintfile target. On the other hand, there can be used Mainfile "hacks" like
+  #
+  #   echo '
+  #   func_name () {' >/dev/null
+  #
+  # to make selected functions invokable from command line.
+  ($PKM_CMD "$@")
+else
+  error "unknown command: $PKM_CMD"
+fi

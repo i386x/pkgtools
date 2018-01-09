@@ -38,6 +38,9 @@ function newfile_guess_template() {
       Maintfile)
         T="MAINTFILE"
         ;;
+      plain | PLAIN | empty | EMPTY)
+        T="PLAIN"
+        ;;
       *)
         newfile_on_guess_template_fail T "$1"
     esac
