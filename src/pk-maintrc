@@ -557,11 +557,11 @@ template NEWFILE_MAINTFILE_TEMPLATE "\
 @HEADER
 
 # Project variables:
-setvar PROJECT ''
-setvar AUTHOR_NAME ''
-setvar AUTHOR_EMAIL ''
-setvar LICENSE ''
-setvar VERSION ''
+setvar PROJECT '\"''\"'
+setvar AUTHOR_NAME '\"''\"'
+setvar AUTHOR_EMAIL '\"''\"'
+setvar LICENSE '\"''\"'
+setvar VERSION '\"''\"'
 
 # Project maintaining tasks:
 " HEADER=NEWFILE_MAKEFILE_HEADER_TEMPLATE
