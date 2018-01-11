@@ -33,8 +33,8 @@ nl_sep='
 tab_sep='	'
 export nl_sep tab_sep
 
-PKM_HAS_MAINTFILE=0
-export PKM_HAS_MAINTFILE
+PKM_MAINTFILE=""
+export PKM_MAINTFILE
 
 PKM_CMD=""
 export PKM_CMD
@@ -301,7 +301,7 @@ p_ = p
 while True:
     pp = os.path.join(p, f)
     if os.path.isdir(pp) or os.path.isfile(pp):
-        gotcha(p)
+        gotcha(pp)
     p = up(p)
     if p == p_:
         break
@@ -539,6 +539,53 @@ function eval_template() {
 }
 
 ##
+# addfile [groups] : FILES
+#
+# Add each file from FILES to the every group from `groups' including the group
+# `all'.
+function addfile() {
+  local G
+
+  # Gather groups:
+  G="all"
+  while [ "$*" ]; do
+    if [ "$1" = ":" ]; then
+      shift
+      break
+    else
+      G="$G $1"
+    fi
+    shift
+  done
+
+  # Collect files:
+  while [ "$*" ]; do
+    for g in $G; do
+      ProjectFiles[$g]="${ProjectFiles[$g]}$1${nl_sep}"
+    done
+    shift
+  done
+}
+
+##
+# for_files $1 $2 ... $n
+#
+#   $1 - group name
+#   $2 - action
+#   $3, $4, ..., $n - $2's arguments
+#
+# For each file F from ${ProjectFiles[$1]} do $2 with arguments $F $3 $4 ... $n.
+function for_files() {
+  local G
+  local C
+
+  G=$1; C=$2; shift 2
+  for f in ${ProjectFiles[$G]}; do
+    $C $f "$@"
+  done
+}
+
+##
 # TODO
 unpack() {
   :
@@ -566,7 +613,7 @@ export PKM_VERSION
 
 declare -A ProjectVars
 declare -A ProjectConfig
-declare -A ProjectDeps
+declare -A ProjectFiles
 
 if [ -f "${PKM_CFGDIR}/${PKM_NAME}rc" ]; then
   source "${PKM_CFGDIR}/${PKM_NAME}rc"
@@ -1272,10 +1319,11 @@ function default() {
   true
 }
 
-[ -f "$(pwd)/Maintfile" ] && {
-  source "$(pwd)/Maintfile"
-  PKM_HAS_MAINTFILE=1
-  extract_targets_ "$(pwd)/Maintfile"
+PKM_MAINTFILE=$(search_upwards "$(pwd)" "Maintfile")
+
+[ "$PKM_MAINTFILE" ] && {
+  source "$PKM_MAINTFILE"
+  extract_targets_ "$PKM_MAINTFILE"
   targets_['default']="default"
 }
 
@@ -1286,7 +1334,7 @@ shift $nargs
 [ $OPT_VERSION -ne 0 ] && { echo $PKM_VERSION; exit 0; }
 
 if [ -z "$1" ]; then
-  [ $PKM_HAS_MAINTFILE -eq 0 ] && exit 0
+  [ -z "$PKM_MAINTFILE" ] && exit 0
   PKM_CMD='default'
 else
   PKM_CMD="$1"
