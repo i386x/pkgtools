@@ -119,6 +119,7 @@ function newfile_guess_file_path() {
   if [ -z "$R" ]; then
     echo "./$3"
   else
+    R=$(dirname "$R")
     R=$(compute_relpath "$D/$3" "$R")
     echo "./$R"
   fi
@@ -567,5 +568,218 @@ setvar VERSION '\"''\"'
 " HEADER=NEWFILE_MAKEFILE_HEADER_TEMPLATE
 
 ###############################################################################
-# `init' command configuration
+# `Maintfile' library
 ###############################################################################
+
+##
+# relpath_of $1
+#
+#   $1 - file name
+#
+# Return a path to $1 relative to the project root directory. If $1 contain
+# LFs, first line is taken as an argument.
+function relpath_of() {
+  local R
+  local F
+
+  [ -z "$1" ] && error "$FUNCNAME: no file given"
+  F=$(echo "$1" | head -n 1)
+  [ -z "$F" ] && error "$FUNCNAME: empty file name"
+  case "$F" in
+    /*) : ;;
+    *) F="$(pwd)/$F" ;;
+  esac
+  R=$(dirname "$PKM_MAINTFILE")
+  compute_relpath "$F" "$R"
+}
+
+# Python is more safe then sed in some circumstances:
+header_updater_='
+import sys
+
+bye = sys.exit
+argv = sys.argv[1:]
+
+def error(msg, *args):
+    sys.stderr.write("header_updater: %s\n" % (msg % args))
+    bye(1)
+
+if len(argv) < 3:
+    error("insufficient number of arguments")
+
+fname, field, text = argv[:3]
+content_lines = []
+
+def edit_field_line(l, f, s):
+    i = l.find(f)
+    if i < 0:
+        return l, False
+    i += len(f)
+    while i < len(l) and l[i].isspace():
+        i += 1
+    return l[:i] + s, True
+
+with open(fname, "r") as fd:
+    content_lines = fd.read().split("\n")
+
+for i, l in enumerate(content_lines):
+    content_lines[i], changed = edit_field_line(content_lines[i], field, text)
+    if changed:
+        break
+
+with open(fname, "w") as fd:
+    fd.write("\n".join(content_lines))
+'
+
+##
+# update_header $1 $2 $3
+#
+#   $1 - file name
+#   $2 - field name
+#   $3 - field text
+#
+# Replace $2's text in file $1 by $3 (only the first occurrence of $2 is
+# edited).
+function update_header() {
+  python -c "${header_updater_}" "$@"
+}
+
+##
+# see_file $1
+#
+#   $1 - path to file
+#
+# Emit "See <path to $1 relative to project root>".
+function see_file() {
+  local E
+  local F
+
+  F=$(relpath_of "$1"); E=$?
+  [ $E -ne 0 ] && exit $
+  echo "See ./$F"
+}
+
+##
+# see_license $1 $2
+#
+#   $1 - license type
+#   $2 - path to license file
+#
+# Emit "<license type> (see <path to $2 relative to project root>)".
+function see_license() {
+  local E
+  local F
+
+  F=$(relpath_of "$2"); E=$?
+  [ $E -ne 0 ] && exit $E
+  echo "$1 (see ./$F)"
+}
+
+template MIT_LICENSE_TEMPLATE "\
+Copyright (c) @YEAR @AUTHOR.
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the \"Software\"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in
+all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED \"AS IS\", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
+IN THE SOFTWARE.
+"
+
+##
+# add_license $1
+#
+#   $1 - name of license file
+#
+# Add a $1 to the project directory.
+function add_license() {
+  local Y
+  local E
+  local F
+
+  [ -z "$1" ] && error "$FUNCNAME: missing name of license file"
+  F=$(dirname "$PKM_MAINTFILE"); F="$F/$1"
+  [ -f "$F" ] && { echo "'$F' already exists"; exit 0; }
+  [ -d "$F" ] && error "$FUNCNAME: '$F' is a directory"
+  [ -z "${ProjectVars[LICENSE]}" ] && error "$FUNCNAME: LICENSE variable has no value"
+
+  case "${ProjectVars[LICENSE]}" in
+    MIT)
+      Y=$(sh $PKM_PROG stamp "--format=%(tm_year)d"); E=$?
+      [ $E -ne 0 ] && exit $E
+      expr "$Y" : '^[1-9][0-9]*$' >/dev/null 2>&1 || error "$FUNCNAME: invalid year format '$Y'"
+      [ -z "${ProjectVars[AUTHOR_NAME]}" ] && error "$FUNCNAME: author's name's not set"
+      eval_template MIT_LICENSE_TEMPLATE YEAR="$Y" AUTHOR="${ProjectVars[AUTHOR_NAME]}" > "$F"
+      ;;
+    *)
+      error "$FUNCNAME: unknown license '${ProjectVars[LICENSE]}'"
+  esac
+}
+
+template README_MD_TEMPLATE "\
+# @PROJECT
+
+WIP
+"
+
+##
+# add_readme $1
+#
+#   $1 - name of README file
+#
+# Add a $1 to the project directory.
+function add_readme() {
+  local F
+
+  [ -z "$1" ] && error "$FUNCNAME: missing name of README file"
+  F=$(dirname "$PKM_MAINTFILE"); F="$F/$1"
+  [ -f "$F" ] && { echo "'$F' already exists"; exit 0; }
+  [ -d "$F" ] && error "$FUNCNAME: '$F' is a directory"
+  [ -z "${ProjectVars[PROJECT]}" ] && error "$FUNCNAME: PROJECT variable has no value"
+
+  case "$F" in
+    *.md)
+      eval_template README_MD_TEMPLATE PROJECT="${ProjectVars[PROJECT]}" > "$F"
+      ;;
+    *)
+      (
+        N=$(expr length "${ProjectVars[PROJECT]}")
+        echo "${ProjectVars[PROJECT]}"
+        for ((i = 0; i < $N; i++)); do
+          echo -n "="
+        done
+        echo ""
+        echo ""
+        echo "WIP"
+      ) > "$F"
+  esac
+}
+
+##
+# add_version $1
+#
+#   $1 - name of VERSION file
+#
+# Add a $1 to the project directory.
+function add_version() {
+  local F
+
+  [ -z "$1" ] && error "$FUNCNAME: missing name of version file"
+  F=$(dirname "$PKM_MAINTFILE"); F="$F/$1"
+  [ -f "$F" ] && { echo "'$F' already exists"; exit 0; }
+  [ -d "$F" ] && error "$FUNCNAME: '$F' is a directory"
+  [ -z "${ProjectVars[VERSION]}" ] && error "$FUNCNAME: VERSION variable has no value"
+
+  echo "${ProjectVars[VERSION]}" > "$F"
+}
