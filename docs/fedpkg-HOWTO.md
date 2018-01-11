@@ -17,13 +17,13 @@ All Fedora packages are at https://src.fedoraproject.org/ .
 
 Login to https://src.fedoraproject.org/.
 
-Fork your package's repo.
+Fork the package's repo.
 
 **Tip**: Prefer Firefox for communication with https://src.fedoraproject.org/.
 
-Clone your package by running `fedpkg clone <package>`.
+Clone the package by running `fedpkg clone <package>`.
 
-Change `origin` to be your forked repo:
+Change `origin` to be the forked repo:
 ```sh
 git remote set-url origin <ssh_url_to_your_forked_repo>
 # <ssh_url_to_your_forked_repo> is at the bottom of your forked repo's main
@@ -39,14 +39,120 @@ Clean all untracked files (if there are any):
 fedpkg clean
 ```
 
-Prepare your package:
+Prepare the package:
 ```sh
 # Run commands in %prep section; this downloads and unpacks source tarball from
 # upstream and applies patches:
 fedpkg prep
 ```
 
-Make your contributions.
+Make the contributions.
+
+Edit the spec file:
+```sh
+# Bumps up the spec file version:
+rpmdev-bumpspec <name>.spec
+```
+
+**Tip**: Use `git add` before `fedpkg clean` to start tracking untracked files.
+
+Inform the upstream if you create a new patch.
+
+Commit the changes:
+```sh
+# Affected branches: master, f27, f26
+#
+# Assume the recent branch is master.
+# 1. Commit the changes to the master branch:
+git add <new and modified files>
+git commit -m "Commit message"
+# If needed, edit the commit message:
+git commit --amend
+# or if you have more commits:
+git rebase -i HEAD~<number of involved commits>
+# 2. Switch to other branches and merge them with master:
+git checkout <branch_name>
+git merge --ff-only master
+```
+
+Build/test the package locally:
+```sh
+# Build the package as local for rawhide:
+git checkout master
+fedpkg --release master local
+fedpkg clean
+# Build the package as local for Fedora 27:
+git checkout f27
+fedpkg --release f27 local
+fedpkg clean
+# Build the package as local for Fedora 26:
+git checkout f26
+fedpkg --release f26 local
+fedpkg clean
+```
+
+Build/test the package using `mock`:
+```sh
+# Mock build for rawhide:
+git checkout master
+fedpkg srpm
+mock -r fedora-rawhide-x86_64 <path to srpm>
+fedpkg clean
+# Mock build for Fedora 27:
+git checkout f27
+fedpkg srpm
+mock -r fedora-27-x86_64 <path to srpm>
+fedpkg clean
+# Mock build for Fedora 26:
+git checkout f26
+fedpkg srpm
+mock -r fedora-26-x86_64 <path to srpm>
+fedpkg clean
+```
+
+## Sending the changes
+
+Do scratch builds:
+```sh
+# Do scratch build for all arches. If no srpm is provided, build from most
+# recent pushed commit. You should switch to the corresponding branch (f26,
+# f27, master for f26, f27, rawhide, respectively):
+git checkout [master|f27|f26]
+fedpkg srpm
+fedpkg scratch-build --target [f27|f26|rawhide] --srpm <path to srpm>
+```
+
+Push the changes (if scratch builds succeeds):
+```sh
+git checkout <branch_name>
+git push
+```
+
+Do builds:
+```sh
+git checkout <branch_name>
+fedpkg build
+```
+
+**Tip 1**: This takes long time. Sending `SIGINT` by `Ctrl-C` brings building
+to background.
+
+**Tip 2**: On `koji.fedoraproject.org`, after signing in and selecting
+component, you can see the building progress and status.
+
+## Update system
+
+Go to Bugzilla and write a comment about resolved issue, provide link to the
+corresponding commit.
+
+Change the state to modified.
+
+Sign in to `bodhi.fedoraproject.org`.
+
+Choose `Create -> New Update`.
+
+Select package, candidate builds, related bugs, final details (choose a proper
+type), write update notes and submit.
 
 ## Useful utilities and tricks
 
@@ -106,7 +212,10 @@ LD_PRELOAD
 # - run program with <lib> preloaded:
 LD_PRELOAD=<lib> ./<elf_binary> [arguments]
 ```
-See also http://tldp.org/HOWTO/Program-Library-HOWTO/shared-libraries.html.
+
+See also:
+- http://tldp.org/HOWTO/Program-Library-HOWTO/shared-libraries.html
+- `man ld.so`
 
 **Tip**: If no from the above works, the shared library is probably plugin.
 Consult the documentation and/or source code of maintained package how to deal
@@ -138,9 +247,19 @@ objdump
 # - show all headers:
 objdump -x <elf_binary>
 
+# List the all coredumps of the program <prog>:
+coredumpctl list <prog>
 # Open the last coredump in gdb:
 coredumpctl gdb
+# Show information about a process that dumped core, matching <pid>:
+coredumpctl info <pid>
+# Extract the last core dump of /usr/bin/<prog> to a file named
+# <prog>.coredump:
+coredumpctl -o <prog>.coredump dump /usr/bin/<prog>
 ```
+
+See also:
+- https://ask.fedoraproject.org/en/question/98776/where-is-core-dump-located/
 
 ### Performance analysis
 
@@ -151,6 +270,52 @@ top
 
 **Chromium tip**: `Shift + Esc` launches the task manager with PID and CPU
 usage information per tab.
+
+### Signals
+
+```C
+#define SIGHUP     1
+#define SIGINT     2
+#define SIGQUIT    3
+#define SIGILL     4
+#define SIGTRAP    5
+#define SIGABRT    6
+#define SIGIOT     6
+#define SIGBUS     7
+#define SIGFPE     8
+#define SIGKILL    9
+#define SIGUSR1   10
+#define SIGSEGV   11
+#define SIGUSR2   12
+#define SIGPIPE   13
+#define SIGALRM   14
+#define SIGTERM   15
+#define SIGSTKFLT 16
+#define SIGCHLD   17
+#define SIGCONT   18
+#define SIGSTOP   19
+#define SIGTSTP   20
+#define SIGTTIN   21
+#define SIGTTOU   22
+#define SIGURG    23
+#define SIGXCPU   24
+#define SIGXFSZ   25
+#define SIGVTALRM 26
+#define SIGPROF   27
+#define SIGWINCH  28
+#define SIGIO     29
+#define SIGPOLL   SIGIO
+#define SIGLOST   29
+#define SIGPWR    30
+#define SIGSYS    31
+#define	SIGUNUSED 31
+```
+
+TTY driver settings:
+```sh
+# Show control character mapping:
+stty -a
+```
 
 ### Tricks
 
