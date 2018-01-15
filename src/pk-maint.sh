@@ -1252,6 +1252,16 @@ fcmd stamp "${tab_sep}get the time date stamp" stamp.py
 declare -A targets_
 
 ##
+# target $1
+#
+#   $1 - target's name
+#
+# Add $1 to Maintfile targets.
+function target() {
+  targets_[$1]="$1"
+}
+
+##
 # extract_targets_ $1
 #
 #   $1 - Maintfile
@@ -1312,12 +1322,14 @@ if [ "${commands[$PKM_CMD]}" ]; then
   (${commands[$PKM_CMD]} "$@")
 elif [ $(type -t "$PKM_CMD") = 'function' ] && [ "${targets_[$PKM_CMD]}" ]; then
   # This "targets_" workaround sanitize arbitrary function execution from
-  # Maintfile target. On the other hand, there can be used Mainfile "hacks" like
+  # Maintfile target. On the other hand, there can be used Mainfile "hacks",
+  # like
   #
   #   echo '
   #   func_name () {' >/dev/null
   #
-  # to make selected functions invokable from command line.
+  # to make selected functions invokable from command line (to keep your
+  # Maintfiles readable, you should use `target' command to achieve this).
   ($PKM_CMD "$@")
 else
   error "unknown command: $PKM_CMD"
