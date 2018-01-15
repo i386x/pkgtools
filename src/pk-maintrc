@@ -809,10 +809,12 @@ function add_version() {
 function ensure_specfiles() {
   ensure_dir "${PKM_PRJROOT}/specfiles" && \
   [ "${ProjectVars[PKG_NAME]}" ] && \
-  [ ! -d "${PKM_PRJROOT}/specfiles/${ProjectVars[PKG_NAME]}" ] && (
-    cd "${PKM_PRJROOT}/specfiles" && \
-    fedpkg clone "${ProjectVars[PKG_NAME]}"
-  )
+  if [ ! -d "${PKM_PRJROOT}/specfiles/${ProjectVars[PKG_NAME]}" ]; then
+    (
+      cd "${PKM_PRJROOT}/specfiles" && \
+      fedpkg clone "${ProjectVars[PKG_NAME]}"
+    )
+  fi
 }
 
 ##
@@ -821,7 +823,16 @@ function ensure_specfiles() {
 # Get the list of source archives and print them to the standard output
 # (one per line).
 function enumerate_sources() {
-  ls -a1 *.bz2 *.gz *.xz
+  local L
+
+  L=$(ls -a1)
+  for f in $L; do
+    case "$f" in
+      *.bz2  | *.gz  | *.xz  | \
+      *.tbz2 | *.tgz | *.txz )
+        echo "$f"
+    esac
+  done
 }
 
 ##
