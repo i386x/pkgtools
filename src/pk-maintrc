@@ -853,6 +853,7 @@ function cache_sources() {
 #
 # Get the source archives and cache them.
 function get_sources() {
+  [ $PKM_DEBUG -ne 0 ] && set -x
   ensure_specfiles && (
     cd "${PKM_PRJROOT}/specfiles/${ProjectVars[PKG_NAME]}" && \
     ensure_sources && \

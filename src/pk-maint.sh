@@ -40,6 +40,9 @@ export PKM_MAINTFILE PKM_PRJROOT
 PKM_CMD=""
 export PKM_CMD
 
+PKM_DEBUG=0
+export PKM_DEBUG
+
 ##
 # error $1
 #
@@ -1240,6 +1243,7 @@ function edit_cmd() {
   eval "$C"
 }
 
+defopt - debug "enter the debug mode"
 defopt h,? help "print this screen and exit"
 defopt - version "${tab_sep}print version and exit"
 icmd edit "${tab_sep}edit the given input file and send it to the given output" edit_cmd
@@ -1307,6 +1311,7 @@ PKM_PRJROOT=$(dirname "$PKM_MAINTFILE")
 process_args "$@"
 shift $nargs
 
+PKM_DEBUG=$OPT_DEBUG
 [ $OPT_HELP -ne 0 ] && { usage; exit 0; }
 [ $OPT_VERSION -ne 0 ] && { echo $PKM_VERSION; exit 0; }
 
