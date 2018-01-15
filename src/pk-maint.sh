@@ -34,7 +34,8 @@ tab_sep='	'
 export nl_sep tab_sep
 
 PKM_MAINTFILE=""
-export PKM_MAINTFILE
+PKM_PRJROOT=""
+export PKM_MAINTFILE PKM_PRJROOT
 
 PKM_CMD=""
 export PKM_CMD
@@ -53,7 +54,7 @@ function error() {
   else
     T=""
   fi
-  echo "${PKM_NAME}$T: ERROR: $*" 1>&2
+  echo "${PKM_NAME}$T: ERROR: $*" >&2
   exit 1
 }
 
@@ -71,7 +72,7 @@ function warning() {
   else
     T=""
   fi
-  echo "${PKM_NAME}$T: WARNING: $*" 1>&2
+  echo "${PKM_NAME}$T: WARNING: $*" >&2
 }
 
 ##
@@ -131,11 +132,7 @@ function str_chr() {
   local T
 
   T=$(str_exclude "$1" "$2")
-  if [ "$T" = "$1" ]; then
-    false
-  else
-    true
-  fi
+  [ "$T" != "$1" ]
 }
 
 ##
@@ -150,11 +147,7 @@ function str_contains() {
 
   T=$(str_commonchars "$1" "$2")
   T=$(str_exclude "$2" "$T")
-  if [ "$T" ]; then
-    false
-  else
-    true
-  fi
+  [ -z "$T" ]
 }
 
 ##
@@ -218,6 +211,16 @@ function text_to_right() {
 }
 
 ##
+# exists $1
+#
+#   $1 - file or directory name
+#
+# Return true if $1 is existing file or directory.
+function exists() {
+  [ -f "$1" ] || [ -d "$1" ]
+}
+
+##
 # find_command $1
 #
 #   $1 - command name
@@ -235,9 +238,7 @@ function find_command() {
 #
 # Exit with error if $1 is not installed on the host system.
 function require_command() {
-  if [ -z "$(find_command $1)" ]; then
-    error "$1 command is required"
-  fi
+  [ -z "$(find_command $1)" ] && error "$1 command is required"
 }
 
 relpath_resolver_='
@@ -548,7 +549,7 @@ function addfile() {
 
   # Gather groups:
   G="all"
-  while [ "$*" ]; do
+  while [ $# -gt 0 ]; do
     if [ "$1" = ":" ]; then
       shift
       break
@@ -559,7 +560,7 @@ function addfile() {
   done
 
   # Collect files:
-  while [ "$*" ]; do
+  while [ $# -gt 0 ]; do
     for g in $G; do
       ProjectFiles[$g]="${ProjectFiles[$g]}$1${nl_sep}"
     done
@@ -585,24 +586,14 @@ function for_files() {
   done
 }
 
-##
-# TODO
-unpack() {
-  :
-}
-
 require_command cat
 require_command head
 require_command cut
 require_command tr
 require_command expr
+require_command grep
 require_command sed
-require_command mkdir
 require_command pwd
-require_command ls
-require_command tar
-require_command gzip
-require_command bzip2
 require_command python
 
 PKM_VERSION='@VERSION@'
@@ -615,12 +606,8 @@ declare -A ProjectVars
 declare -A ProjectConfig
 declare -A ProjectFiles
 
-if [ -f "${PKM_CFGDIR}/${PKM_NAME}rc" ]; then
-  source "${PKM_CFGDIR}/${PKM_NAME}rc"
-fi
-if [ -f "${HOME}/.${PKM_NAME}rc" ]; then
-  source "${HOME}/.${PKM_NAME}rc"
-fi
+[ -f "${PKM_CFGDIR}/${PKM_NAME}rc" ] && source "${PKM_CFGDIR}/${PKM_NAME}rc"
+[ -f "${HOME}/.${PKM_NAME}rc" ] && source "${HOME}/.${PKM_NAME}rc"
 
 OPTVAR_PREFIX='OPT_'
 OPTSTORAGE_PREFIX=$(echo $PKM_NAME | tr 'a-z-' 'A-Z_')
@@ -784,7 +771,7 @@ function rawdefopt() {
     eval "${OPTSTORAGE_PREFIX}_long_opts_map[\$2]=\"setvar_ ${OPTVAR_PREFIX}\$T 0\""
   fi
 
-  if [ ! "$1" = "-" ]; then
+  if [ "$1" != "-" ]; then
     for x in $(echo $1 | tr ',' ' '); do
       eval "${OPTSTORAGE_PREFIX}_short_opts_map[\$x]=\"\$2\""
     done
@@ -829,7 +816,7 @@ function rawdefkvopt() {
 
   eval "${OPTSTORAGE_PREFIX}_long_kvopts_map[\$2]=\"\$T\""
 
-  if [ ! "$1" = "-" ]; then
+  if [ "$1" != "-" ]; then
     for x in $(echo $1 | tr ',' ' '); do
       eval "${OPTSTORAGE_PREFIX}_short_kvopts_map[\$x]=\"\$T\""
     done
@@ -881,9 +868,7 @@ function handle_long_kvoption() {
   V=$(expr "$1" : '^--[^=][^=]*=\(..*\)$')
   eval "T=\"\${${OPTSTORAGE_PREFIX}_long_kvopts_map[\$K]}\""
 
-  if [ -z "$T" ]; then
-    error "--$K is not key-value option"
-  fi
+  [ -z "$T" ] && error "--$K is not key-value option"
   setvar_ ${OPTVAR_PREFIX}$T "$V"
 }
 
@@ -897,26 +882,18 @@ function handle_long_option() {
   local T
   local U
 
-  if [ "$need_arg" ]; then
-    error "expected argument, but $1 option given"
-  fi
+  [ "$need_arg" ] && error "expected argument, but $1 option given"
 
   T=$(expr "$1" : '^--\([a-zA-Z][-a-zA-Z0-9]*=..*\)$')
   if [ "$T" ]; then
     handle_long_kvoption "$1"
   else
     T=$(expr "$1" : '^--\([a-zA-Z][-a-zA-Z0-9]*\)$')
-    if [ -z "$T" ]; then
-      error "ill-formed option $1"
-    fi
+    [ -z "$T" ] && error "ill-formed option $1"
     eval "U=\"\${${OPTSTORAGE_PREFIX}_long_kvopts_map[\$T]}\""
-    if [ "$U" ]; then
-      error "$1: missing value"
-    fi
+    [ "$U" ] && error "$1: missing value"
     eval "U=\"\${${OPTSTORAGE_PREFIX}_long_opts_map[\$T]}\""
-    if [ -z "$U" ]; then
-      error "unknown option $1"
-    fi
+    [ -z "$U" ] && error "unknown option $1"
     eval "\${${OPTSTORAGE_PREFIX}_long_opts_map[\$T]}"
   fi
 }
@@ -965,32 +942,24 @@ function handle_short_option() {
   local U
   local H
 
-  if [ "$need_arg" ]; then
-    error "expected argument, but $1 option given"
-  fi
+  [ "$need_arg" ] && error "expected argument, but $1 option given"
 
   H=0
   eval "$2=\"\""
   T=$(expr "$1" : '^-\([?a-zA-Z0-9]\).*$')
-  if [ -z "$T" ]; then
-    error "ill-formed option $1"
-  fi
+  [ -z "$T" ] && error "ill-formed option $1"
   eval "U=\"\${${OPTSTORAGE_PREFIX}_short_kvopts_map[\$T]}\""
-  if [ "$U" ]; then
+  [ "$U" ] && {
     handle_short_kvoption "$T" "$1"
     H=1
-  fi
+  }
   eval "U=\"\${${OPTSTORAGE_PREFIX}_short_opts_map[\$T]}\""
-  if [ $H -eq 0 ] && [ -z "$U" ]; then
-    error "unknown short option -$T"
-  fi
+  [ $H -eq 0 ] && [ -z "$U" ] && error "unknown short option -$T"
   if [ $H -eq 0 ]; then
     eval "T=\"\${${OPTSTORAGE_PREFIX}_short_opts_map[\$T]}\""
     eval "\${${OPTSTORAGE_PREFIX}_long_opts_map[\$T]}"
     T=$(expr "$1" : '^-.\(.*\)$')
-    if [ "$T" ]; then
-      T="-$T"
-    fi
+    [ "$T" ] && T="-$T"
     eval "$2=\"$T\""
   fi
 }
@@ -1002,13 +971,10 @@ function handle_short_option() {
 #
 # Set $? to 0 if `need_arg' was handled. Otherwise, set $? to 1.
 function handle_need_arg() {
-  if [ "$need_arg" ]; then
+  [ "$need_arg" ] && {
     setvar_ ${OPTVAR_PREFIX}$need_arg "$1"
     need_arg=""
-    true
-  else
-    false
-  fi
+  }
 }
 
 declare -A commands
@@ -1028,9 +994,7 @@ function cmd() {
   else
     cmd_helplines="  $1${tab_sep}$2"
   fi
-  if [ "${commands[$1]}" ]; then
-    error "command $1 was already defined"
-  fi
+  [ "${commands[$1]}" ] && error "command $1 was already defined"
   commands[$1]="$3"
 }
 
@@ -1118,7 +1082,7 @@ function process_args() {
   need_arg=""
   short_args=""
   nargs=0
-  while [ "$*" ]; do
+  while [ $# -gt 0 ]; do
     case "$1" in
       --*)
         handle_long_option "$1"
@@ -1272,7 +1236,7 @@ function edit_cmd() {
     esac
   done
   C="cat \"$EDITOPT_INPUT\" | $C -e 's${D}$EDITOPT_AT_SIGN${D}@${D}g'"
-  [ "$EDITOPT_OUTPUT" ] && { C="$C > \"$EDITOPT_OUTPUT\""; }
+  [ "$EDITOPT_OUTPUT" ] && C="$C > \"$EDITOPT_OUTPUT\""
   eval "$C"
 }
 
@@ -1320,8 +1284,11 @@ function default() {
 }
 
 PKM_MAINTFILE=$(search_upwards "$(pwd)" "Maintfile")
+PKM_PRJROOT=$(dirname "$PKM_MAINTFILE")
 
 [ "$PKM_MAINTFILE" ] && {
+  [ -f "${PKM_PRJROOT}/.${PKM_NAME}/config" ] \
+  && source "${PKM_PRJROOT}/.${PKM_NAME}/config"
   source "$PKM_MAINTFILE"
   extract_targets_ "$PKM_MAINTFILE"
   targets_['default']="default"

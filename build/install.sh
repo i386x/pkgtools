@@ -18,7 +18,7 @@ last_error=0
 last_stderr=""
 
 error() {
-  echo "$0: error: $*" 1>&2
+  echo "$0: error: $*" >&2
   exit 1
 }
 
@@ -92,7 +92,7 @@ dflag=0
 mode=""
 verbose=$VERBOSE
 
-while [ "$*" ]; do
+while [ $# -gt 0 ]; do
   case "$1" in
     --check)
       check=1

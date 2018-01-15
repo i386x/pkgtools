@@ -8,7 +8,13 @@
 #! \fdesc   pk-maint configuration.
 #
 
-require_command pwd
+require_command ls
+require_command mkdir
+require_command cp
+require_command tar
+require_command gzip
+require_command bzip2
+require_command fedpkg
 
 ###############################################################################
 # User configuration
@@ -427,7 +433,7 @@ function newfile_guess_file_desc() {
 #   -H X      emit all field lines, each line is starting with X
 #
 function newfile_gen_header_template() {
-  while [ "$*" ]; do
+  while [ $# -gt 0 ]; do
     case "$1" in
       -b)
         echo "#!@INTERPRETER"
@@ -524,10 +530,10 @@ config new-file AUTHOR4_EMAIL "\$(newfile_guess_author_email4 \"\$T\" \"\$R\" \"
 config new-file AUTHOR5_NAME "\$(newfile_guess_author_name5 \"\$T\" \"\$R\" \"\$F\")"
 config new-file AUTHOR5_EMAIL "\$(newfile_guess_author_email5 \"\$T\" \"\$R\" \"\$F\")"
 
-config new-file DATE_FMT "%(tm_year)04d-%(tm_mon)02d-%(tm_mday)02d"
-config new-file TIME_FMT "%(tm_hour)02d:%(tm_min)02d:%(tm_sec)02d"
-config new-file UTC_FMT "%(zone_sign)s%(zone_hour)02d:%(zone_min)02d"
-config new-file DST_FMT "%(dst_sign)s%(dst_hour)02d:%(dst_min)02d"
+config new-file DATE_FMT "%Y-%m-%d"
+config new-file TIME_FMT "%H:%M:%S"
+config new-file UTC_FMT "%!0z%!1z:%!2z"
+config new-file DST_FMT "%*0z%*1z:%*2z"
 
 template NEWFILE_STAMP_FORMAT "@DATE_FMT @TIME_FMT (UTC@UTC_FMT, DST@DST_FMT)"
 
@@ -570,6 +576,17 @@ setvar VERSION '\"''\"'
 ###############################################################################
 # `Maintfile' library
 ###############################################################################
+
+##
+# ensure_dir $1
+#
+#   $1 - directory name
+#
+# Test if $1 exists. If not, create it. If $1 is a file, fail.
+function ensure_dir() {
+  [ -f "$1" ] && error "$FUNCNAME: $1 is a file"
+  [ -d "$1" ] || mkdir "$1"
+}
 
 ##
 # relpath_of $1
@@ -782,4 +799,82 @@ function add_version() {
   [ -z "${ProjectVars[VERSION]}" ] && error "$FUNCNAME: VERSION variable has no value"
 
   echo "${ProjectVars[VERSION]}" > "$F"
+}
+
+##
+# ensure_specfiles
+#
+# Ensure there exists ./specfiles/${PKG_NAME}/ directory. This involves also
+# cloning ${PKG_NAME} package.
+function ensure_specfiles() {
+  ensure_dir "${PKM_PRJROOT}/specfiles" && \
+  [ "${ProjectVars[PKG_NAME]}" ] && \
+  [ ! -d "${PKM_PRJROOT}/specfiles/${ProjectVars[PKG_NAME]}" ] && (
+    cd "${PKM_PRJROOT}/specfiles" && \
+    fedpkg clone "${ProjectVars[PKG_NAME]}"
+  )
+}
+
+##
+# enumerate_sources
+#
+# Get the list of source archives and print them to the standard output
+# (one per line).
+function enumerate_sources() {
+  ls -a1 *.bz2 *.gz *.xz
+}
+
+##
+# ensure_sources
+#
+# Try to get source archives if there are none (use fedpkg prep). Return true
+# if operation has succeed.
+function ensure_sources() {
+  [ -z "$(enumerate_sources)" ] && fedpkg prep
+  [ "$(enumerate_sources)" ]
+}
+
+##
+# cache_sources
+#
+# Copy source archives to the internal project cache.
+function cache_sources() {
+  local D
+
+  D="${PKM_PRJROOT}/.${PKM_NAME}/sourcecache"
+  ensure_dir "$D" && \
+  for a in $(enumerate_sources); do
+    cp "$a" "$D/$a"
+  done
+}
+
+##
+# get_sources
+#
+# Get the source archives and cache them.
+function get_sources() {
+  ensure_specfiles && (
+    cd "${PKM_PRJROOT}/specfiles/${ProjectVars[PKG_NAME]}" && \
+    ensure_sources && \
+    cache_sources
+  )
+}
+
+##
+# unpack $1
+#
+#   $1 - archive
+#
+# Unpack $1 to the current working directory.
+function unpack() {
+  case "$1" in
+    *.tar.gz | *.tgz)
+      gzip -dc "$1" | tar -xvvof -
+      ;;
+    *.tar.bz2)
+      bzip2 -dc "$1" | tar -xvvof -
+      ;;
+    *)
+      error "$FUNCNAME: I don't know how to unpack '$1'"
+  esac
 }

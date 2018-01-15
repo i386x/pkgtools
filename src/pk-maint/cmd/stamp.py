@@ -11,6 +11,7 @@
 import sys
 import os
 import time
+import re
 
 up = os.path.pardir
 
@@ -31,50 +32,84 @@ Print the time date stamp of now to stdout. If --file is given, print the ctime
 of FILE instead; options are
 
   --file=FILE       print the time date stamp of FILE
-  --format=STR      set the format string (in Python syntax)
+  --format=STR      set the format string (see below)
   -h, -?, --help    print this screen and exit
   --version         print the version and exit
 
-The format string is ordinary Python format string supporting the following
-fields:
+The format strings are similar to those from time.strftime, the following
+directives are supported:
 
-  %%(tm_year)d      as in time.struct_time
-  %%(tm_mon)d       as in time.struct_time
-  %%(tm_mday)d      as in time.struct_time
-  %%(tm_hour)d      as in time.struct_time
-  %%(tm_min)d       as in time.struct_time
-  %%(tm_sec)d       as in time.struct_time
-  %%(tm_wday)d      as in time.struct_time
-  %%(tm_yday)d      as in time.struct_time
-  %%(tm_zone)s      as in time.struct_time
-  %%(zone_sign)s    time zone (excluding DST) offset sign (+/-)
-  %%(zone_hour)d    time zone (excluding DST) offset hour
-  %%(zone_min)d     time zone (excluding DST) offset minute
-  %%(zone_sec)d     time zone (excluding DST) offset second
-  %%(dst_sign)s     DST sign (+/-)
-  %%(dst_hour)d     DST hour
-  %%(dst_min)d      DST minute
-  %%(dst_sec)d      DST second
-  %%(zd_sign)s      time zone (including DST) offset sign (+/-)
-  %%(zd_hour)d      time zone (including DST) offset hour
-  %%(zd_min)d       time zone (including DST) offset minute
-  %%(zd_sec)d       time zone (including DST) offset second
+  %%%%              a literal '%%' character
+  %%Y              year as a decimal number (e.g. 2008)
+  %%m              month as a decimal number [01, 12]
+  %%d              day of the month as a decimal number [01, 31]
+  %%H              hour as a decimal number [00, 23]
+  %%M              minute as a decimal number [00, 59]
+  %%S              second as a decimal number [00, 61]
+  %%w              weekday as a decimal number [0, 6] (Monday is 0)
+  %%j              day of the year as a decimal number [001, 366]
+  %%Z              time zone name
+  %%[!*][0123]z    time zone offset; the parts between [] are flags with the
+                  following meaning:
 
-WARNING: Since this script can evaluate code that can be passed throught
---format parameter, use this script carefully and as internal auxiliary
-tool only.
+                    ! - time zone offset excluding DST
+                    * - DST offset only
+                    0 - offset sign only
+                    1 - offset hours only
+                    2 - offset minutes only
+                    3 - offset seconds only
 
 """
+
+ff_re = re.compile("(%%|%[YmdHMSwjZ]|%[!*]?[0-3]?z)")
+ff_tab = {
+    '%%': '%%',
+    '%Y': '%(tm_year)04d',
+    '%m': '%(tm_mon)02d',
+    '%d': '%(tm_mday)02d',
+    '%H': '%(tm_hour)02d',
+    '%M': '%(tm_min)02d',
+    '%S': '%(tm_sec)02d',
+    '%w': '%(tm_wday)d',
+    '%j': '%(tm_yday)03d',
+    '%Z': '%(tm_zone)s',
+    '%!0z': '%(zone_sign)s',
+    '%!1z': '%(zone_hour)02d',
+    '%!2z': '%(zone_min)02d',
+    '%!3z': '%(zone_sec)02d',
+    '%!z': '%(zone_sign)s%(zone_hour)02d%(zone_min)02d',
+    '%*0z': '%(dst_sign)s',
+    '%*1z': '%(dst_hour)02d',
+    '%*2z': '%(dst_min)02d',
+    '%*3z': '%(dst_sec)02d',
+    '%*z': '%(dst_sign)s%(dst_hour)02d%(dst_min)02d',
+    '%0z': '%(zd_sign)s',
+    '%1z': '%(zd_hour)02d',
+    '%2z': '%(zd_min)02d',
+    '%3z': '%(zd_sec)02d',
+    '%z': '%(zd_sign)s%(zd_hour)02d%(zd_min)02d'
+}
+
+def e(s):
+    r = ""
+    for x in s:
+        if x == '%':
+            r += '%%'
+        else:
+            r += x
+    return r
+
+def f(s):
+    l = ff_re.split(s)
+    r = ""
+    for x in l:
+        r += ff_tab.get(x, e(x))
+    return r
 
 help_given = False
 version_given = False
 file_given = None
-format_string = \
-    "%(tm_year)04d-%(tm_mon)02d-%(tm_mday)02d" \
-    " " \
-    "%(tm_hour)02d:%(tm_min)02d:%(tm_sec)02d" \
-    " " \
-    "%(zd_sign)s%(zd_hour)02d%(zd_min)02d"
+format_string = "%Y-%m-%d %H:%M:%S %z"
 
 def p(s, *args, **kwargs):
     if args:
@@ -180,4 +215,4 @@ tm_vars['dst_sign'], tm_vars['dst_hour'], \
 tm_vars['zd_sign'], tm_vars['zd_hour'], \
     tm_vars['zd_min'], tm_vars['zd_sec'] = zd(stamp)
 
-p("%s\n", format_string % tm_vars)
+p("%s\n", f(format_string) % tm_vars)

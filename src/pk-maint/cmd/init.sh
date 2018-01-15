@@ -8,7 +8,8 @@
 #! \fdesc   Initialize project maintenance directory.
 #
 
-require_command pwd
+require_command touch
+require_command mkdir
 require_command git
 
 function init_usage() {
@@ -16,9 +17,10 @@ function init_usage() {
   echo ""
   echo "Initialize a project. This involves the following:"
   echo ""
-  echo "  1. create .git"
-  echo "  2. create Maintfile"
-  echo "  3. create .gitignore"
+  echo "  1. create .pk-maint"
+  echo "  2. create .git"
+  echo "  3. create Maintfile"
+  echo "  4. create .gitignore"
   echo ""
   echo "Existing files and directories remain untouched; options are"
   echo ""
@@ -45,28 +47,33 @@ function init_cmd() {
   [ $INITOPT_HELP -ne 0 ] && { init_usage; exit 0; }
   [ $INITOPT_VERSION -ne 0 ] && { echo $PKM_VERSION; exit 0; }
   V=""
-  [ $INITOPT_VERBOSE -ne 0 ] && { V="-v"; }
+  [ $INITOPT_VERBOSE -ne 0 ] && V="-v"
 
   # Check if we are in initialized repository:
-  T=$(search_upwards "$(pwd)" ".git")
+  T=$(search_upwards "$(pwd)" ".${PKM_NAME}")
   [ "$T" ] && {
     [ "$V" ] && echo "already initialized"
     exit 0
   }
 
-  # 1. if there is no .git directory, run `git init`:
-  if [ -d ".git" ]; then
-    [ "$V" ] && echo ".git directory already exists"
-  else
-    git init; E=$?
-    [ $E -ne 0 ] && exit $E
-    [ -d ".git" ] || error ".git is not an existing directory and cannot be created"
-  fi
+  # 1. create .pk-maint directory:
+  exists ".${PKM_NAME}" || {
+    [ "$V" ] && echo "making .${PKM_NAME} directory"
+    mkdir ".${PKM_NAME}"
+  }
 
-  # 2. if there is no Maintfile, create it:
-  eval "sh $PKM_PROG new-file $V -r.git -TMaintfile -d\"Project maintenance script.\" Maintfile"; E=$?
-  [ $E -ne 0 ] && exit $E
+  # 1.1. create .pk-maint/config:
+  exists ".${PKM_NAME}/config" || {
+    [ "$V" ] && echo "creating file .${PKM_NAME}/config"
+    touch ".${PKM_NAME}/config"
+  }
 
-  # 3. if there is no .gitignore, create it:
+  # 2. if there is no .git directory, run `git init`:
+  exists ".git" || git init
+
+  # 3. if there is no Maintfile, create it:
+  eval "sh $PKM_PROG new-file $V -r.git -TMaintfile -d\"Project maintenance script.\" Maintfile"
+
+  # 4. if there is no .gitignore, create it:
   eval "sh $PKM_PROG new-file $V -Tplain .gitignore"
 }

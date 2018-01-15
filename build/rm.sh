@@ -14,7 +14,7 @@ script_dir=$(dirname $0)
 vars_cfg="$script_dir/../vars.cfg"
 
 error() {
-  echo "$0: error: $*" 1>&2
+  echo "$0: error: $*" >&2
   exit 1
 }
 
@@ -72,7 +72,7 @@ remove() {
   fi
 }
 
-while [ "$*" ]; do
+while [ $# -gt 0 ]; do
   case "$1" in
     --help | -h | -\?)
       echo "Usage: $0 [options] FILE1 FILE2 ... FILEn"

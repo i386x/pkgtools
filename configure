@@ -26,7 +26,7 @@ EDIT=""
 OUTPUT='vars.cfg'
 
 error() {
-  echo "$0: error: $*" 1>&2
+  echo "$0: error: $*" >&2
   exit 1
 }
 
@@ -87,11 +87,9 @@ assert_bash() {
 }
 
 # File & directory utils
-require touch
 require mkdir
 require cp
 require rm
-require stat
 require ls
 require chmod
 # Text utils

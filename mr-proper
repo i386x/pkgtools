@@ -16,7 +16,7 @@ last_stderr=""
 verbose=0
 
 error() {
-  echo "$0: error: $*" 1>&2
+  echo "$0: error: $*" >&2
   exit 1
 }
 
@@ -33,7 +33,7 @@ try_run() {
   [ $verbose -ne 0 ] && [ $last_error -eq 0 ] && echo "ok"
 }
 
-while [ "$*" ]; do
+while [ $# -gt 0 ]; do
   case "$1" in
     --help | -h | -\?)
       echo "Usage: $0 [options]"
