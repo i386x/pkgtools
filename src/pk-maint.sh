@@ -1243,7 +1243,7 @@ function edit_cmd() {
   eval "$C"
 }
 
-defopt - debug "enter the debug mode"
+defopt - debug "${tab_sep}enter the debug mode"
 defopt h,? help "print this screen and exit"
 defopt - version "${tab_sep}print version and exit"
 icmd edit "${tab_sep}edit the given input file and send it to the given output" edit_cmd
