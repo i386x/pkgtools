@@ -100,6 +100,7 @@ require grep
 # Automation utils
 require sh
 require make
+require python
 # We use GNU bash
 assert_bash sh
 assert_bash /bin/sh
@@ -111,15 +112,15 @@ verboseflag=0
 for arg; do
   case "$arg" in
     --bindir=*)
-      bindir=$(expr "$arg" : '^--bindir=\(..*\)$')
+      bindir="${arg##--bindir=}"
       [ -z "$bindir" ] && error "ill-formed '--bindir=DIR' option"
       ;;
     --cfgdir=*)
-      cfgdir=$(expr "$arg" : '^--cfgdir=\(..*\)$')
+      cfgdir="${arg##--cfgdir=}"
       [ -z "$cfgdir" ] && error "ill-formed '--cfgdir=DIR' option"
       ;;
     --datadir=*)
-      datadir=$(expr "$arg" : '^--datadir=\(..*\)$')
+      datadir="${arg##--datadir=}"
       [ -z "$datadir" ] && error "ill-formed '--datadir=DIR' option"
       ;;
     --dry-run)

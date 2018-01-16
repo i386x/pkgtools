@@ -596,7 +596,6 @@ require_command tr
 require_command expr
 require_command grep
 require_command sed
-require_command pwd
 require_command python
 
 PKM_VERSION='@VERSION@'
@@ -1287,6 +1286,16 @@ function extract_targets_() {
   for l in $L; do
     targets_[$l]="$l"
   done
+}
+
+##
+# autocomplete_tarballs $1
+#
+#   $1 - target name
+#
+# Mark $1 to be autocompleted.
+function autocomplete_tarballs() {
+  true
 }
 
 ##

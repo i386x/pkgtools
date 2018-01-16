@@ -8,9 +8,12 @@
 #! \fdesc   pk-maint configuration.
 #
 
+require_command wc
 require_command ls
 require_command mkdir
 require_command cp
+require_command mv
+require_command rm
 require_command tar
 require_command gzip
 require_command bzip2
@@ -578,6 +581,71 @@ setvar VERSION '\"''\"'
 ###############################################################################
 
 ##
+# arcrmext $1
+#
+#   $1 - tarball name
+#
+# Remove $1's extension.
+function arcrmext() {
+  local T
+
+  T="$1"
+  case "$T" in
+    *.tar.*)
+      echo "${T%.tar.*}"
+      ;;
+    *)
+      echo "${T%.*}"
+  esac
+}
+
+##
+# nlines $1
+#
+#   $1 - text
+#
+# Count lines in $1.
+function nlines() {
+  echo "$1" | wc -l
+}
+
+##
+# dir_read $1 $2
+#
+#   $1 - container (associative array)
+#   $2 - directory
+#
+# Save all item names in $2 to $1.
+function dir_read() {
+  for f in $(ls -a1 "$2"); do
+    eval "$1[$f]=1"
+  done
+}
+
+##
+# dir_diff $1 $2 $3
+#
+#   $1 - container (associative array)
+#   $2 - directory
+#   $3 - result
+#
+# Record all item names (one per line) from $2 that are not recorded in $1 to
+# $3.
+function dir_diff() {
+  for f in $(ls -a1 "$2"); do
+    eval "\
+      if [ -z \"\${$1[$f]}\" ]; then
+        if [ -z \"\${$3}\" ]; then
+          $3=\"$f\"
+        else
+          $3=\"\${$3}\${nl_sep}$f\"
+        fi
+      fi
+    "
+  done
+}
+
+##
 # ensure_dir $1
 #
 #   $1 - directory name
@@ -586,6 +654,25 @@ setvar VERSION '\"''\"'
 function ensure_dir() {
   [ -f "$1" ] && error "$FUNCNAME: $1 is a file"
   [ -d "$1" ] || mkdir "$1"
+}
+
+##
+# unpack $1
+#
+#   $1 - archive
+#
+# Unpack $1 to the current working directory.
+function unpack() {
+  case "$1" in
+    *.tar.gz | *.tgz)
+      gzip -dc "$1" | tar -xvvof -
+      ;;
+    *.tar.bz2)
+      bzip2 -dc "$1" | tar -xvvof -
+      ;;
+    *)
+      error "$FUNCNAME: I don't know how to unpack '$1'"
+  esac
 }
 
 ##
@@ -873,20 +960,32 @@ function get_sources() {
 }
 
 ##
-# unpack $1
+# unpack_source $1
 #
-#   $1 - archive
+#   $1 - source tarball
 #
-# Unpack $1 to the current working directory.
-function unpack() {
-  case "$1" in
-    *.tar.gz | *.tgz)
-      gzip -dc "$1" | tar -xvvof -
-      ;;
-    *.tar.bz2)
-      bzip2 -dc "$1" | tar -xvvof -
-      ;;
-    *)
-      error "$FUNCNAME: I don't know how to unpack '$1'"
-  esac
+# Unpack selected tarball from source cache to upstream directory. Do not
+# overwrite the existing one.
+function unpack_source() {
+  local A
+  local D
+  local T
+  declare -A S
+
+  [ $PKM_DEBUG -ne 0 ] && set -x
+  D="${PKM_PRJROOT}/.${PKM_NAME}/sourcecache"
+  rm -rfd "/var/tmp/${PKM_NAME}"
+  [ "$1" ] && \
+  ensure_dir "${PKM_PRJROOT}/upstream" && \
+  mkdir -p "/var/tmp/${PKM_NAME}" && \
+  cp "$D/$1" "/var/tmp/${PKM_NAME}/$1" && \
+  dir_read S "/var/tmp/${PKM_NAME}" && \
+  (cd "/var/tmp/${PKM_NAME}" && unpack "$1") && \
+  T="" && \
+  dir_diff S "/var/tmp/${PKM_NAME}" T && \
+  [ $(nlines "$T") -eq 1 ] && \
+  if [ ! -d "${PKM_PRJROOT}/upstream/$(arcrmext $1)" ]; then
+    mv "/var/tmp/${PKM_NAME}/$T" "${PKM_PRJROOT}/upstream/$(arcrmext $1)"
+  fi
+  rm -rfd "/var/tmp/${PKM_NAME}"
 }

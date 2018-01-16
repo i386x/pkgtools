@@ -1,0 +1,100 @@
+#
+#! \file    ./etc/pk-maint
+#! \author  Jiří Kučera, <jkucera AT redhat.com>
+#! \stamp   2018-01-15 23:13:46 (UTC+01:00, DST+00:00)
+#! \project pkgtools: Tools for Maintaining Fedora Packages
+#! \license MIT (see ./LICENSE)
+#! \version See ./VERSION
+#! \fdesc   Completion for pk-maint.
+#
+
+_pk_maint_project_root_finder='
+import sys
+import os
+
+up = lambda p: os.path.realpath(os.path.join(p, os.pardir))
+bye = sys.exit
+
+def gotcha(what):
+    sys.stdout.write("%s\n" % what)
+    bye(0)
+
+# Starting at current working directory, go up and lookup for project root:
+p = os.getcwd()
+p_ = p
+while True:
+    pp = os.path.join(p, ".pk-maint")
+    if os.path.isdir(pp):
+        gotcha(p)
+    p = up(p)
+    if p == p_:
+        break
+    p_ = p
+'
+
+_pk_maint_find_act_targets() {
+  if [ -f "$1/Maintfile" ]; then
+    cat "$1/Maintfile" | \
+    grep -e '^autocomplete_tarballs[ \t][ \t]*[a-zA-Z_][a-zA-Z0-9_]*.*' | \
+    sed  -e 's/^autocomplete_tarballs[ \t][ \t]*\([a-zA-Z_][a-zA-Z0-9_]*\).*/\1/g'
+  fi
+}
+
+_pk_maint_gather_tarballs() {
+  if [ -d "$1/.pk-maint/sourcecache" ]; then
+    (cd "$1/.pk-maint/sourcecache"; ls -a1 | grep -E '\.(bz2|gz|tgz|xz)$')
+  fi
+}
+
+_pk_maint() {
+  local cur cur_target prjroot targets tarballs found
+
+  COMPREPLY=()
+
+  cur="${COMP_WORDS[COMP_CWORD]}"
+
+  # Find the project root:
+  prjroot=$(python -c "${_pk_maint_project_root_finder}")
+  if [ "$prjroot" ]; then
+    # Find out which targets from Maintfile should be autocompleted:
+    targets=( $(_pk_maint_find_act_targets "$prjroot") )
+    # Gather tarballs:
+    tarballs=$(_pk_maint_gather_tarballs "$prjroot")
+    if [ "x${targets[0]}" != "x" ]; then
+      if ((COMP_CWORD == 1)); then
+        found=0
+        for t in "${targets[@]}"; do
+          if [ "$t" = "$cur" ]; then
+            found=1
+            break
+          fi
+        done
+        if ((found == 1)); then
+          if [ -z "$tarballs" ]; then
+            return 0
+          fi
+          COMPREPLY=( ${tarballs} )
+        else
+          COMPREPLY=( $(compgen -W "${targets[@]}" -- ${cur}) )
+        fi
+      elif ((COMP_CWORD == 2)); then
+        cur_target="${COMP_WORDS[1]}"
+        found=0
+        for t in "${targets[@]}"; do
+          if [ "$t" = "${cur_target}" ]; then
+            found=1
+            break
+          fi
+        done
+        if ((found == 1)); then
+          if [ -z "$tarballs" ]; then
+            return 0
+          fi
+          COMPREPLY=( $(compgen -W "$tarballs" -- ${cur}) )
+        fi
+      fi
+    fi
+  fi
+}
+
+complete -F _pk_maint pk-maint

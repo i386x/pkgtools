@@ -14,6 +14,7 @@ CHECK     := @sh_prog@ build/install.sh --check
 
 BIN_DIR      := @BIN_DIR@
 CFG_DIR      := @CFG_DIR@
+CPL_DIR      := $(CFG_DIR)/bash_completion.d
 PKM_PROG     := pk-maint
 PKM_RC       := $(PKM_PROG)rc
 PKM_DATA_DIR := @DATA_DIR@/$(PKM_PROG)
@@ -46,6 +47,7 @@ install:
 	$(CHECK) $(BIN_DIR)/$(PKM_PROG)
 	$(CHECK) $(PKM_DATA_DIR)
 	$(CHECK) $(CFG_DIR)/$(PKM_RC)
+	$(CHECK) $(CPL_DIR)/$(PKM_PROG)
 	$(MAKE) update
 
 update: build/stamp.py build/$(PKM_PROG)
@@ -57,11 +59,13 @@ update: build/stamp.py build/$(PKM_PROG)
 	$(INSTALL) build/stamp.py $(PKM_CMD_DIR)/stamp.py
 	$(INSTALL) src/$(PKM_PROG)/t/$(PKM_PROG).t $(PKM_TEST_DIR)/$(PKM_PROG).t
 	$(INSTALL) -m644 src/$(PKM_RC) $(CFG_DIR)/$(PKM_RC)
+	$(INSTALL) -m644 etc/$(PKM_PROG) $(CPL_DIR)/$(PKM_PROG)
 	$(INSTALL) build/$(PKM_PROG) $(BIN_DIR)/$(PKM_PROG)
 
 uninstall:
 	$(UNINSTALL) $(PKM_DATA_DIR)
 	$(UNINSTALL) $(CFG_DIR)/$(PKM_RC)
+	$(UNINSTALL) $(CPL_DIR)/$(PKM_PROG)
 	$(UNINSTALL) $(BIN_DIR)/$(PKM_PROG)
 
 clean:
