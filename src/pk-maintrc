@@ -976,7 +976,7 @@ function unpack_source() {
   D="${PKM_PRJROOT}/.${PKM_NAME}/sourcecache"
   rm -rfd "/var/tmp/${PKM_NAME}"
   [ "$1" ] && \
-  ensure_dir "${PKM_PRJROOT}/upstream" && \
+  ensure_dir "${PKM_PRJROOT}/downstream" && \
   mkdir -p "/var/tmp/${PKM_NAME}" && \
   cp "$D/$1" "/var/tmp/${PKM_NAME}/$1" && \
   dir_read S "/var/tmp/${PKM_NAME}" && \
@@ -984,8 +984,8 @@ function unpack_source() {
   T="" && \
   dir_diff S "/var/tmp/${PKM_NAME}" T && \
   [ $(nlines "$T") -eq 1 ] && \
-  if [ ! -d "${PKM_PRJROOT}/upstream/$(arcrmext $1)" ]; then
-    mv "/var/tmp/${PKM_NAME}/$T" "${PKM_PRJROOT}/upstream/$(arcrmext $1)"
+  if [ ! -d "${PKM_PRJROOT}/downstream/$(arcrmext $1)" ]; then
+    mv "/var/tmp/${PKM_NAME}/$T" "${PKM_PRJROOT}/downstream/$(arcrmext $1)"
   fi
   rm -rfd "/var/tmp/${PKM_NAME}"
 }
