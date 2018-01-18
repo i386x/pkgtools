@@ -115,11 +115,11 @@ fedpkg clean
 Do scratch builds:
 ```sh
 # Do scratch build for all arches. If no srpm is provided, build from most
-# recent pushed commit. You should switch to the corresponding branch (f26,
-# f27, master for f26, f27, rawhide, respectively):
+# recent pushed commit. You should switch to the corresponding branch (master,
+# f27, f26 for rawhide, f27, f26, respectively):
 git checkout [master|f27|f26]
 fedpkg srpm
-fedpkg scratch-build --target [f27|f26|rawhide] --srpm <path to srpm>
+fedpkg scratch-build --target [rawhide|f27|f26] --srpm <path to srpm>
 ```
 
 Push the changes (if scratch builds succeeds):
