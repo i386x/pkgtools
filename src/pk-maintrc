@@ -555,6 +555,11 @@ template NEWFILE_MAKEFILE_HEADER_TEMPLATE \
 
 template NEWFILE_PLAIN_TEMPLATE ""
 
+template NEWFILE_PKM_GITIGNORE_TEMPLATE "\
+/downstream
+/specfiles
+"
+
 template NEWFILE_C_TEMPLATE "\
 @HEADER
 " HEADER=NEWFILE_C_HEADER_TEMPLATE
@@ -967,9 +972,9 @@ function get_sources() {
 # Unpack selected tarball from source cache to upstream directory. Do not
 # overwrite the existing one.
 function unpack_source() {
-  local A
   local D
   local T
+  local E
   declare -A S
 
   [ $PKM_DEBUG -ne 0 ] && set -x
@@ -987,5 +992,27 @@ function unpack_source() {
   if [ ! -d "${PKM_PRJROOT}/downstream/$(arcrmext $1)" ]; then
     mv "/var/tmp/${PKM_NAME}/$T" "${PKM_PRJROOT}/downstream/$(arcrmext $1)"
   fi
+  E=$?
   rm -rfd "/var/tmp/${PKM_NAME}"
+  return $E
+}
+
+##
+# ds_prep
+#
+#   $1 - target with unpacked sources
+#   $2 - target's new name
+#
+# Prepare dowmstream (rename $1 to $2, cd to $2, and do git init).
+function ds_prep() {
+  [ $PKM_DEBUG -ne 0 ] && set -x
+  D="${PKM_PRJROOT}/downstream"
+  [ "$1" ] && [ "$2" ] && \
+  [ -d "$D/$1" ] && \
+  [ ! -d "$D/$1/.git" ] && \
+  [ ! -d "$D/$2" ] && \
+  mv "$D/$1" "$D/$2" && (
+    cd "$D/$2" && \
+    git init
+  )
 }

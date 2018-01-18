@@ -1289,6 +1289,17 @@ function extract_targets_() {
 }
 
 ##
+# autocomplete_downstreams $1
+#
+#   $1 - target name
+#
+# Mark $1 to be autocompleted.
+function autocomplete_downstreams() {
+  true
+}
+
+
+##
 # autocomplete_tarballs $1
 #
 #   $1 - target name
@@ -1334,7 +1345,7 @@ fi
 
 if [ "${commands[$PKM_CMD]}" ]; then
   (${commands[$PKM_CMD]} "$@")
-elif [ $(type -t "$PKM_CMD") = 'function' ] && [ "${targets_[$PKM_CMD]}" ]; then
+elif [ x$(type -t "$PKM_CMD") = 'xfunction' ] && [ "${targets_[$PKM_CMD]}" ]; then
   # This "targets_" workaround sanitize arbitrary function execution from
   # Maintfile target. On the other hand, there can be used Mainfile "hacks",
   # like

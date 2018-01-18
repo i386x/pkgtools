@@ -35,8 +35,14 @@ while True:
 _pk_maint_find_act_targets() {
   if [ -f "$1/Maintfile" ]; then
     cat "$1/Maintfile" | \
-    grep -e '^autocomplete_tarballs[ \t][ \t]*[a-zA-Z_][a-zA-Z0-9_]*.*' | \
-    sed  -e 's/^autocomplete_tarballs[ \t][ \t]*\([a-zA-Z_][a-zA-Z0-9_]*\).*/\1/g'
+    grep -E '^autocomplete_(downstreams|tarballs)[ \t]+[a-zA-Z_][a-zA-Z0-9_]*.*' | \
+    sed  -e 's/^autocomplete_\([a-zA-Z][a-zA-Z0-9_]*\)[ \t][ \t]*\([a-zA-Z_][a-zA-Z0-9_]*\).*/\2.\1/g'
+  fi
+}
+
+_pk_maint_gather_downstreams() {
+  if [ -d "$1/downstream" ]; then
+    (cd "$1/downstream"; ls -1)
   fi
 }
 
@@ -47,7 +53,8 @@ _pk_maint_gather_tarballs() {
 }
 
 _pk_maint() {
-  local cur cur_target prjroot targets tarballs found
+  local first_no_opt nargs t_
+  local cur cur_target prjroot targets targets_ downstreams tarballs found
 
   COMPREPLY=()
 
@@ -58,43 +65,89 @@ _pk_maint() {
   if [ "$prjroot" ]; then
     # Find out which targets from Maintfile should be autocompleted:
     targets=( $(_pk_maint_find_act_targets "$prjroot") )
+    targets_=( $(for x in "${targets[@]}"; do echo "${x%.*}"; done) )
+    # Gather downstreams:
+    downstreams=( $(_pk_maint_gather_downstreams "$prjroot") )
     # Gather tarballs:
     tarballs=$(_pk_maint_gather_tarballs "$prjroot")
     if [ "x${targets[0]}" != "x" ]; then
-      if ((COMP_CWORD == 1)); then
-        found=0
-        for t in "${targets[@]}"; do
-          if [ "$t" = "$cur" ]; then
-            found=1
-            break
-          fi
-        done
-        if ((found == 1)); then
-          if [ -z "$tarballs" ]; then
-            return 0
-          fi
-          COMPREPLY=( ${tarballs} )
-        else
-          COMPREPLY=( $(compgen -W "${targets[@]}" -- ${cur}) )
+      # targets is not empty, let's complete:
+      # - skip options first
+      for ((first_no_opt = 1; first_no_opt <= COMP_CWORD; first_no_opt++)); do
+        if [[ "${COMP_WORDS[first_no_opt]}" != -* ]]; then
+          break
         fi
-      elif ((COMP_CWORD == 2)); then
-        cur_target="${COMP_WORDS[1]}"
-        found=0
-        for t in "${targets[@]}"; do
-          if [ "$t" = "${cur_target}" ]; then
-            found=1
-            break
-          fi
-        done
-        if ((found == 1)); then
-          if [ -z "$tarballs" ]; then
-            return 0
-          fi
-          COMPREPLY=( $(compgen -W "$tarballs" -- ${cur}) )
-        fi
+      done
+      # - count remaining arguments:
+      if [[ $first_no_opt > $COMP_CWORD ]]; then
+        first_no_opt=$COMP_CWORD
       fi
+      nargs=$((COMP_CWORD - first_no_opt))
+      if ((nargs == 0)); then
+        # `pk-maint x' case:
+        found=0
+        for t_ in "${targets[@]}"; do
+          if [ "${t_%.*}" = "$cur" ]; then
+            found=1
+            break
+          fi
+        done
+        if ((found == 1)); then
+          # `x' is the full command name -> second arg will be autocompleted
+          case "${t_#*.}" in
+            downstreams)
+              if [ -z "$downstreams" ]; then
+                return 0
+              fi
+              COMPREPLY=( ${downstreams} )
+              ;;
+            tarballs)
+              if [ -z "$tarballs" ]; then
+                return 0
+              fi
+              COMPREPLY=( ${tarballs} )
+              ;;
+          esac
+          # unknown category -> no completion
+        else
+          # `x' not found -> `x' is possibly a partial target name
+          COMPREPLY=( $(compgen -W "${targets_[*]}" -- ${cur}) )
+        fi
+      elif ((nargs == 1)); then
+        # `pk-maint x y' case:
+        cur_target="${COMP_WORDS[first_no_opt]}"
+        found=0
+        for t_ in "${targets[@]}"; do
+          if [ "${t_%.*}" = "${cur_target}" ]; then
+            found=1
+            break
+          fi
+        done
+        if ((found == 1)); then
+          # we know the target, try to complete its argument:
+          case "${t_#*.}" in
+            downstreams)
+              if [ -z "$downstreams" ]; then
+                return 0
+              fi
+              COMPREPLY=( $(compgen -W "$downstreams" -- ${cur}) )
+              ;;
+            tarballs)
+              if [ -z "$tarballs" ]; then
+                return 0
+              fi
+              COMPREPLY=( $(compgen -W "$tarballs" -- ${cur}) )
+              ;;
+          esac
+          # unknown target category
+        fi
+        # unknown target
+      fi
+      # not `pk-maint [options] target argument'
     fi
+    # no targets for completion defined
   fi
+  # not inside pk-maint project directory
 }
 
 complete -F _pk_maint pk-maint
