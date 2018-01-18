@@ -92,7 +92,7 @@ function newfile_cmd() {
     [ $V -ne 0 ] && echo "Template for '$F' is not set, '$F' will be created as plain."
     T="PLAIN"
   }
-  T=$(echo "$T" | tr 'a-z' 'A-Z')
+  T=$(echo "$T" | tr 'a-z-' 'A-Z_')
 
   # The rest of options should be in a VAR=VALUE form:
   for P; do
