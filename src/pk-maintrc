@@ -64,8 +64,8 @@ function newfile_on_guess_template_fail() {
 # newfile_at_guess_interpreter_begin $1 $2 $3
 #
 #   $1 - template type
-#   $2 - project root
-#   $3 - file
+#   $2 - name of the unique file or directory in project root
+#   $3 - file name
 #
 # Determine interpreter at early phase of newfile_guess_interpreter. Can be
 # overriden by the user.
@@ -77,8 +77,8 @@ function newfile_at_guess_interpreter_begin() {
 # newfile_on_guess_interpreter_fail $1 $2 $3
 #
 #   $1 - template type
-#   $2 - project root
-#   $3 - file
+#   $2 - name of the unique file or directory in project root
+#   $3 - file name
 #
 # Determine interpreter or raise an error if other attempts fails. Can be
 # overriden by the user.
@@ -90,8 +90,8 @@ function newfile_on_guess_interpreter_fail() {
 # newfile_guess_interpreter $1 $2 $3
 #
 #   $1 - template type
-#   $2 - project root
-#   $3 - file
+#   $2 - name of the unique file or directory in project root
+#   $3 - file name
 #
 # Determine interpreter for $3.
 function newfile_guess_interpreter() {
@@ -114,8 +114,8 @@ function newfile_guess_interpreter() {
 # newfile_guess_file_path $1 $2 $3
 #
 #   $1 - template type
-#   $2 - project root file or directory (i.e. Maintfile, .git)
-#   $3 - file
+#   $2 - name of the unique file or directory in project root
+#   $3 - file name
 #
 # Determine path to $3 relative to the project root file or directory location.
 # Can be overriden by the user.
@@ -138,8 +138,8 @@ function newfile_guess_file_path() {
 # newfile_guess_author_name $1 $2 $3
 #
 #   $1 - template type
-#   $2 - project root
-#   $3 - file
+#   $2 - name of the unique file or directory in project root
+#   $3 - file name
 #
 # Determine the author's name. Can be overriden by the user.
 function newfile_guess_author_name() {
@@ -156,8 +156,8 @@ function newfile_guess_author_name() {
 # newfile_guess_author_name1 $1 $2 $3
 #
 #   $1 - template type
-#   $2 - project root
-#   $3 - file
+#   $2 - name of the unique file or directory in project root
+#   $3 - file name
 #
 # Determine the name of the 1st author. Can be overriden by the user.
 function newfile_guess_author_name1() {
@@ -174,8 +174,8 @@ function newfile_guess_author_name1() {
 # newfile_guess_author_name2 $1 $2 $3
 #
 #   $1 - template type
-#   $2 - project root
-#   $3 - file
+#   $2 - name of the unique file or directory in project root
+#   $3 - file name
 #
 # Determine the name of the 2nd author. Can be overriden by the user.
 function newfile_guess_author_name2() {
@@ -190,8 +190,8 @@ function newfile_guess_author_name2() {
 # newfile_guess_author_name3 $1 $2 $3
 #
 #   $1 - template type
-#   $2 - project root
-#   $3 - file
+#   $2 - name of the unique file or directory in project root
+#   $3 - file name
 #
 # Determine the name of the 3rd author. Can be overriden by the user.
 function newfile_guess_author_name3() {
@@ -206,8 +206,8 @@ function newfile_guess_author_name3() {
 # newfile_guess_author_name4 $1 $2 $3
 #
 #   $1 - template type
-#   $2 - project root
-#   $3 - file
+#   $2 - name of the unique file or directory in project root
+#   $3 - file name
 #
 # Determine the name of the 4th author. Can be overriden by the user.
 function newfile_guess_author_name4() {
@@ -222,8 +222,8 @@ function newfile_guess_author_name4() {
 # newfile_guess_author_name5 $1 $2 $3
 #
 #   $1 - template type
-#   $2 - project root
-#   $3 - file
+#   $2 - name of the unique file or directory in project root
+#   $3 - file name
 #
 # Determine the name of the 5th author. Can be overriden by the user.
 function newfile_guess_author_name5() {
@@ -238,8 +238,8 @@ function newfile_guess_author_name5() {
 # newfile_guess_author_email $1 $2 $3
 #
 #   $1 - template type
-#   $2 - project root
-#   $3 - file
+#   $2 - name of the unique file or directory in project root
+#   $3 - file name
 #
 # Determine author's email address. Can be overriden by the user.
 function newfile_guess_author_email() {
@@ -256,8 +256,8 @@ function newfile_guess_author_email() {
 # newfile_guess_author_email1 $1 $2 $3
 #
 #   $1 - template type
-#   $2 - project root
-#   $3 - file
+#   $2 - name of the unique file or directory in project root
+#   $3 - file name
 #
 # Determine an email address of the 1st author. Can be overriden by the user.
 function newfile_guess_author_email1() {
@@ -274,8 +274,8 @@ function newfile_guess_author_email1() {
 # newfile_guess_author_email2 $1 $2 $3
 #
 #   $1 - template type
-#   $2 - project root
-#   $3 - file
+#   $2 - name of the unique file or directory in project root
+#   $3 - file name
 #
 # Determine an email address of the 2nd author. Can be overriden by the user.
 function newfile_guess_author_email2() {
@@ -290,8 +290,8 @@ function newfile_guess_author_email2() {
 # newfile_guess_author_email3 $1 $2 $3
 #
 #   $1 - template type
-#   $2 - project root
-#   $3 - file
+#   $2 - name of the unique file or directory in project root
+#   $3 - file name
 #
 # Determine an email address of the 3rd author. Can be overriden by the user.
 function newfile_guess_author_email3() {
@@ -306,8 +306,8 @@ function newfile_guess_author_email3() {
 # newfile_guess_author_email4 $1 $2 $3
 #
 #   $1 - template type
-#   $2 - project root
-#   $3 - file
+#   $2 - name of the unique file or directory in project root
+#   $3 - file name
 #
 # Determine an email address of the 4th author. Can be overriden by the user.
 function newfile_guess_author_email4() {
@@ -322,8 +322,8 @@ function newfile_guess_author_email4() {
 # newfile_guess_author_email5 $1 $2 $3
 #
 #   $1 - template type
-#   $2 - project root
-#   $3 - file
+#   $2 - name of the unique file or directory in project root
+#   $3 - file name
 #
 # Determine an email address of the 5th author. Can be overriden by the user.
 function newfile_guess_author_email5() {
@@ -338,8 +338,8 @@ function newfile_guess_author_email5() {
 # newfile_guess_stamp $1 $2 $3
 #
 #   $1 - template type
-#   $2 - project root
-#   $3 - file
+#   $2 - name of the unique file or directory in project root
+#   $3 - file name
 #
 # Get the time date stamp string of $3. Can be overriden by the user.
 function newfile_guess_stamp() {
@@ -353,8 +353,8 @@ function newfile_guess_stamp() {
 # newfile_guess_project_desc $1 $2 $3
 #
 #   $1 - template type
-#   $2 - project root
-#   $3 - file
+#   $2 - name of the unique file or directory in project root
+#   $3 - file name
 #
 # Get the project description. Can be overriden by the user.
 function newfile_guess_project_desc() {
@@ -369,8 +369,8 @@ function newfile_guess_project_desc() {
 # newfile_guess_license $1 $2 $3
 #
 #   $1 - template type
-#   $2 - project root
-#   $3 - file
+#   $2 - name of the unique file or directory in project root
+#   $3 - file name
 #
 # Get the project license. Can be overriden by the user.
 function newfile_guess_license() {
@@ -385,8 +385,8 @@ function newfile_guess_license() {
 # newfile_guess_version $1 $2 $3
 #
 #   $1 - template type
-#   $2 - project root
-#   $3 - file
+#   $2 - name of the unique file or directory in project root
+#   $3 - file name
 #
 # Get the project version. Can be overriden by the user.
 function newfile_guess_version() {
@@ -401,8 +401,8 @@ function newfile_guess_version() {
 # newfile_guess_file_desc $1 $2 $3
 #
 #   $1 - template type
-#   $2 - project root
-#   $3 - file
+#   $2 - name of the unique file or directory in project root
+#   $3 - file name
 #
 # Get the file description. Can be overriden by the user.
 function newfile_guess_file_desc() {
@@ -411,6 +411,34 @@ function newfile_guess_file_desc() {
   else
     echo "???"
   fi
+}
+
+##
+# newfile_guess_guard $1 $2 $3
+#
+#   $1 - template type
+#   $2 - name of the unique file or directory in project root
+#   $3 - file name
+#
+# Derive the name of include guards used inside C header files.
+function newfile_guess_guard() {
+  local P
+  local T
+
+  P=$(newfile_guess_file_path "$@")
+  P="${P#./}"
+  [ "${ProjectVars[SOURCE_DIR]}" ] && {
+    P="${P#${ProjectVars[SOURCE_DIR]}}"
+    P="${P#/}"
+  }
+  if [ "${ProjectVars[PROJECT_SHORT]}" ]; then
+    P="${ProjectVars[PROJECT_SHORT]}_${P}"
+  else
+    T=$(search_upwards "$3" "$2")
+    [ "$T" ] && { T="${T%/$2}"; T="${T##*/}"; }
+    [ "$T" ] && { P="${T}_${P}"; }
+  fi
+  echo "$P" | tr 'a-z/.-' 'A-Z___'
 }
 
 ##
@@ -545,7 +573,11 @@ config new-file PROJECT_DESC "\$(newfile_guess_project_desc \"\$T\" \"\$R\" \"\$
 config new-file LICENSE "\$(newfile_guess_license \"\$T\" \"\$R\" \"\$F\")"
 config new-file VERSION "\$(newfile_guess_version \"\$T\" \"\$R\" \"\$F\")"
 config new-file FILE_DESC "\$(newfile_guess_file_desc \"\$T\" \"\$R\" \"\$F\")"
+config new-file GUARD "\$(newfile_guess_guard \"\$T\" \"\$R\" \"\$F\")"
 
+template NEWFILE_NASM_HEADER_TEMPLATE \
+  "$(newfile_gen_header_template -c ';' -H ';' -c ';')" \
+  $(newfile_template_args)
 template NEWFILE_C_HEADER_TEMPLATE \
   "$(newfile_gen_header_template -c '/*' -H ' *' -c ' *' -c ' */')" \
   $(newfile_template_args)
@@ -560,8 +592,21 @@ template NEWFILE_PKM_GITIGNORE_TEMPLATE "\
 /specfiles
 "
 
+template NEWFILE_ASM_TEMPLATE "\
+@HEADER
+" HEADER=NEWFILE_NASM_HEADER_TEMPLATE
+
 template NEWFILE_C_TEMPLATE "\
 @HEADER
+" HEADER=NEWFILE_C_HEADER_TEMPLATE
+
+template NEWFILE_H_TEMPLATE "\
+@HEADER
+
+#ifndef @GUARD
+#define @GUARD
+
+#endif
 " HEADER=NEWFILE_C_HEADER_TEMPLATE
 
 template NEWFILE_MAKEFILE_TEMPLATE "\
@@ -573,6 +618,7 @@ template NEWFILE_MAINTFILE_TEMPLATE "\
 
 # Project variables:
 setvar PROJECT '\"''\"'
+setvar PROJECT_SHORT '\"''\"'
 setvar AUTHOR_NAME '\"''\"'
 setvar AUTHOR_EMAIL '\"''\"'
 setvar LICENSE '\"''\"'

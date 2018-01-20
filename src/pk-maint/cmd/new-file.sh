@@ -29,8 +29,14 @@ function newfile_guess_template() {
     echo "$T"
   else
     case "$1" in
+      *.asm)
+        T="ASM"
+        ;;
       *.c)
         T="C"
+        ;;
+      *.h)
+        T="H"
         ;;
       Makefile | *.mk )
         T="MAKEFILE"
@@ -38,7 +44,7 @@ function newfile_guess_template() {
       Maintfile)
         T="MAINTFILE"
         ;;
-      plain | PLAIN | empty | EMPTY)
+      [pP][lL][aA][iI][nN] | [eE][mM][pP][tT][yY])
         T="PLAIN"
         ;;
       *)
@@ -60,7 +66,7 @@ function newfile_cmd() {
   make_optstorage
   kvopt d fdesc "set file description" "" STR
   defopt h,? help "print this screen and exit"
-  kvopt r root "file or directory name that determines the project root" "Maintfile" FILE
+  kvopt r root "file or directory name that determines the project root" ".${PKM_NAME}" FILE
   kvopt T template "force the template, don't guess it" "" NAME
   defopt - version "${tab_sep}print the version and exit"
   defopt v verbose "${tab_sep}don't be quite"

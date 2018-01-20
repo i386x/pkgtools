@@ -1298,7 +1298,6 @@ function autocomplete_downstreams() {
   true
 }
 
-
 ##
 # autocomplete_tarballs $1
 #
