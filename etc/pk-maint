@@ -32,122 +32,200 @@ while True:
     p_ = p
 '
 
-_pk_maint_find_act_targets() {
-  if [ -f "$1/Maintfile" ]; then
-    cat "$1/Maintfile" | \
-    grep -E '^autocomplete_(downstreams|tarballs)[ \t]+[a-zA-Z_][a-zA-Z0-9_]*.*' | \
-    sed  -e 's/^autocomplete_\([a-zA-Z][a-zA-Z0-9_]*\)[ \t][ \t]*\([a-zA-Z_][a-zA-Z0-9_]*\).*/\2.\1/g'
-  fi
-}
+_pk_maint_word_filter='
+import sys
+import os
+import fnmatch
 
-_pk_maint_gather_downstreams() {
-  if [ -d "$1/downstream" ]; then
-    (cd "$1/downstream"; ls -1)
-  fi
-}
+jp = os.path.join
+np = os.path.normpath
+pos2sys = { ".": os.path.curdir, "..": os.path.pardir }
+tp = lambda p: jp(*[ pos2sys.get(x, x) for x in p.split("/") ])
 
-_pk_maint_gather_tarballs() {
-  if [ -d "$1/.pk-maint/sourcecache" ]; then
-    (cd "$1/.pk-maint/sourcecache"; ls -a1 | grep -E '\.(bz2|gz|tgz|xz)$')
-  fi
-}
+def addwords(dest, wl, w = ""):
+    for x in wl:
+        if x not in dest and x.startswith(w):
+            dest.append(x)
+
+invert = lambda x, u: [ e for e in u if e not in x ]
+
+# usage: pk-maint-wf [options] -- words
+# options:
+#     -r prjroot    set project root
+#     -s N          skip N words after "--"
+bye = sys.exit
+join = lambda p, *ps: np(jp(p, *[ tp(x) for x in ps ]))
+argv = sys.argv
+argc = len(argv)
+argi = 1
+prjroot = ""
+wskip = 0
+
+def error(msg, *args):
+    sys.stderr.write("%s\n" % (msg % args))
+    bye(1)
+
+def needargval(argi, argv):
+    if argi + 1 < argc:
+        return
+    error("%s: missing value", argv[argi])
+
+while argi < argc and argv[argi] != "--":
+    if argv[argi] == "-r":
+        needargval(argi, argv)
+        argi += 1
+        prjroot = argv[argi]
+    elif argv[argi] == "-s":
+        needargval(argi, argv)
+        argi += 1
+        try:
+            wskip = int(argv[argi])
+        except:
+            wskip = 0
+    argi += 1
+
+if not prjroot:
+    bye(0)
+
+db = ""
+try:
+    with open(join(prjroot, ".pk-maint", "completion")) as f:
+        db = f.read()
+except:
+    pass
+if not db:
+    bye(0)
+
+def squash(l):
+    r = []
+    for x in l:
+        if not x:
+            continue
+        if x[-1] == "\\":
+            x = x[:-1] + " "
+        if r and r[-1][-1] == " ":
+            r[-1] = r[-1] + x
+        else:
+            r.append(x)
+    return r
+
+db = db.split("\n")
+db = [ x for x in db if x ]
+db = [ squash(x.split(" ")) for x in db ]
+
+if argi < argc and argv[argi] == "--":
+    argi += 1
+
+querry = []
+while argi < argc:
+    if wskip > 0:
+        argi += 1
+        wskip -= 1
+        continue
+    w = argv[argi]
+    argi += 1
+    if w and w[0] == "-":
+        continue
+    querry.append(w)
+if not querry:
+    querry.append("")
+
+def select(db, w, fm):
+    r = []
+    for x in db:
+        if not x or not x[0]:
+            continue
+        elif fm and x[0] == w:
+            r.append(x[1:])
+        elif not fm and (x[0][0] == "-" or x[0].startswith(w)):
+            r.append(x)
+    return r
+
+w = ""
+while querry:
+    w = querry.pop(0)
+    db = select(db, w, len(querry) > 0)
+
+def filter_func(p, files, func, exclude):
+    r = [ f for f in files if func(join(p, f)) ]
+    if exclude:
+        r = invert(r, files)
+    return r
+
+def filter_pat(p, files, pat, exclude):
+    pats = [ x for x in pat.split(" ") if x ]
+    r = []
+    for pat in pats:
+        try:
+            addwords(r, fnmatch.filter(files, pat))
+        except:
+            pass
+    if exclude:
+        r = invert(r, files)
+    return r
+
+opt2func = { "-f": os.path.isfile, "-d": os.path.isdir }
+
+def filter(p, files, opts):
+    exclude = False
+    while opts:
+        o = opts.pop(0)
+        if o in opt2func:
+            files = filter_func(p, files, opt2func[o], exclude)
+            exclude = False
+        elif o == "-P":
+            if not opts:
+                return files
+            pat = opts.pop(0)
+            files = filter_pat(p, files, pat, exclude)
+            exclude = False
+        elif o == "-X":
+            exclude = True
+    return files
+
+def expand_directory(words, opts, w):
+    if not opts:
+        return
+    p = opts.pop(0)
+    if not p:
+        return
+    p = join(prjroot, p)
+    try:
+        files = os.listdir(p)
+    except:
+        return
+    if not files:
+        return
+    files = filter(p, files, opts)
+    addwords(words, files, w)
+
+def expand(words, opts, w):
+    if not opts:
+        return
+    elif opts[0] == "-l":
+        addwords(words, opts[1:], w)
+    elif opts[0] == "-d":
+        expand_directory(words, opts[1:], w)
+
+words = []
+for x in db:
+    if x[0][0] == "-":
+        expand(words, x, w)
+    else:
+        if x[0] not in words:
+            words.append(x[0])
+words.sort()
+
+sys.stdout.write("%s\n" % " ".join(words))
+'
 
 _pk_maint() {
-  local first_no_opt nargs t_
-  local cur cur_target prjroot targets targets_ downstreams tarballs found
-
   COMPREPLY=()
-
-  cur="${COMP_WORDS[COMP_CWORD]}"
-
-  # Find the project root:
   prjroot=$(python -c "${_pk_maint_project_root_finder}")
-  if [ "$prjroot" ]; then
-    # Find out which targets from Maintfile should be autocompleted:
-    targets=( $(_pk_maint_find_act_targets "$prjroot") )
-    targets_=( $(for x in "${targets[@]}"; do echo "${x%.*}"; done) )
-    # Gather downstreams:
-    downstreams=( $(_pk_maint_gather_downstreams "$prjroot") )
-    # Gather tarballs:
-    tarballs=$(_pk_maint_gather_tarballs "$prjroot")
-    if [ "x${targets[0]}" != "x" ]; then
-      # targets is not empty, let's complete:
-      # - skip options first
-      for ((first_no_opt = 1; first_no_opt <= COMP_CWORD; first_no_opt++)); do
-        if [[ "${COMP_WORDS[first_no_opt]}" != -* ]]; then
-          break
-        fi
-      done
-      # - count remaining arguments:
-      if [[ $first_no_opt > $COMP_CWORD ]]; then
-        first_no_opt=$COMP_CWORD
-      fi
-      nargs=$((COMP_CWORD - first_no_opt))
-      if ((nargs == 0)); then
-        # `pk-maint x' case:
-        found=0
-        for t_ in "${targets[@]}"; do
-          if [ "${t_%.*}" = "$cur" ]; then
-            found=1
-            break
-          fi
-        done
-        if ((found == 1)); then
-          # `x' is the full command name -> second arg will be autocompleted
-          case "${t_#*.}" in
-            downstreams)
-              if [ -z "$downstreams" ]; then
-                return 0
-              fi
-              COMPREPLY=( ${downstreams} )
-              ;;
-            tarballs)
-              if [ -z "$tarballs" ]; then
-                return 0
-              fi
-              COMPREPLY=( ${tarballs} )
-              ;;
-          esac
-          # unknown category -> no completion
-        else
-          # `x' not found -> `x' is possibly a partial target name
-          COMPREPLY=( $(compgen -W "${targets_[*]}" -- ${cur}) )
-        fi
-      elif ((nargs == 1)); then
-        # `pk-maint x y' case:
-        cur_target="${COMP_WORDS[first_no_opt]}"
-        found=0
-        for t_ in "${targets[@]}"; do
-          if [ "${t_%.*}" = "${cur_target}" ]; then
-            found=1
-            break
-          fi
-        done
-        if ((found == 1)); then
-          # we know the target, try to complete its argument:
-          case "${t_#*.}" in
-            downstreams)
-              if [ -z "$downstreams" ]; then
-                return 0
-              fi
-              COMPREPLY=( $(compgen -W "$downstreams" -- ${cur}) )
-              ;;
-            tarballs)
-              if [ -z "$tarballs" ]; then
-                return 0
-              fi
-              COMPREPLY=( $(compgen -W "$tarballs" -- ${cur}) )
-              ;;
-          esac
-          # unknown target category
-        fi
-        # unknown target
-      fi
-      # not `pk-maint [options] target argument'
-    fi
-    # no targets for completion defined
+  if [ -z "$prjroot" ]; then
+    return 0
   fi
-  # not inside pk-maint project directory
+  COMPREPLY=( $(python -c "${_pk_maint_word_filter}" -r "$prjroot" -s 1 -- "${COMP_WORDS[@]}" ) )
 }
 
 complete -F _pk_maint pk-maint

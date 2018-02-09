@@ -1289,26 +1289,6 @@ function extract_targets_() {
 }
 
 ##
-# autocomplete_downstreams $1
-#
-#   $1 - target name
-#
-# Mark $1 to be autocompleted.
-function autocomplete_downstreams() {
-  true
-}
-
-##
-# autocomplete_tarballs $1
-#
-#   $1 - target name
-#
-# Mark $1 to be autocompleted.
-function autocomplete_tarballs() {
-  true
-}
-
-##
 # default
 #
 # Predefined Maintfile default target.
