@@ -1044,13 +1044,15 @@ function unpack_source() {
 }
 
 ##
-# ds_prep
+# ds_prep $1 $2
 #
 #   $1 - target with unpacked sources
 #   $2 - target's new name
 #
 # Prepare dowmstream (rename $1 to $2, cd to $2, and do git init).
 function ds_prep() {
+  local D
+
   [ $PKM_DEBUG -ne 0 ] && set -x
   D="${PKM_PRJROOT}/downstream"
   [ "$1" ] && [ "$2" ] && \
@@ -1061,4 +1063,30 @@ function ds_prep() {
     cd "$D/$2" && \
     git init
   )
+}
+
+##
+# make_patch $1 $2 [$3]
+#
+#   $1 - git branch/tag name or commit (from)
+#   $2 - patch name
+#   $3 - git branch/tag name or commit (to)
+#
+# Make {PKG_NAME}-{PKG_VERSION}-$2.patch from diff between $1 and $3. If $3 is
+# omitted, master is used.
+function make_patch() {
+  local D
+  local P
+  local T
+  local U
+
+  [ $PKM_DEBUG -ne 0 ] && set -x
+  [ "$1" ] && [ "$2" ] && U="$3" && \
+  { [ -z "$U" ] && U="master" || :; } && \
+  D="${PKM_PRJROOT}/downstream/${ProjectVars[PKG_NAME]}-downstream" && \
+  P="${ProjectVars[PKG_NAME]}-${ProjectVars[PKG_VERSION]}-$2.patch" && \
+  T=$(cd $D && git diff $1 $U) && \
+  if [ "$T" ]; then
+    echo "$T" > "${ProjectVars[PKG]}/specfiles/${ProjectVars[PKG_NAME]}/$P"
+  fi
 }
