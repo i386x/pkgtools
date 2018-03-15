@@ -1085,7 +1085,7 @@ function make_patch() {
   { [ -z "$U" ] && U="master" || :; } && \
   D="${PKM_PRJROOT}/downstream/${ProjectVars[PKG_NAME]}-downstream" && \
   P="${ProjectVars[PKG_NAME]}-${ProjectVars[PKG_VERSION]}-$2.patch" && \
-  T=$(cd $D && git diff $1 $U) && \
+  T=$(cd $D && git diff $U $1) && \
   if [ "$T" ]; then
     echo "$T" > "${PKM_PRJROOT}/specfiles/${ProjectVars[PKG_NAME]}/$P"
   fi
