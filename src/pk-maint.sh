@@ -1269,22 +1269,22 @@ function target() {
 #
 #   $1 - Maintfile
 #
-# Extract targets names from $1. As a target is considered every function of the
-# form:
+# Extract targets names from $1. As a target is considered every function of
+# the form:
 #
-#   name() {
+#   tg_name() {
 #
-# where `name' must be settled on the line beginning and there can be any
+# where `tg_name' must be settled on the line beginning and there can be any
 # number of spaces around `(', `)', and `{'.
 function extract_targets_() {
   local L
 
   L=$( \
-    cat "$1" | grep -e '^[a-zA-Z_][a-zA-Z0-9_]*[ \t]*[(][ \t]*[)][ \t]*[{].*' \
-             | sed  -e 's/^\([a-zA-Z_][a-zA-Z0-9_]*\).*/\1/g' \
+    cat "$1" | grep -E '^tg_[a-zA-Z0-9_]+[ \t]*[(][ \t]*[)][ \t]*[{].*' \
+             | sed  -E -e 's/^(tg_[a-zA-Z0-9_]+).*/\1/g' \
   )
   for l in $L; do
-    targets_[$l]="$l"
+    targets_[${l:3}]="$l"
   done
 }
 
@@ -1292,7 +1292,7 @@ function extract_targets_() {
 # default
 #
 # Predefined Maintfile default target.
-function default() {
+function tg_default() {
   true
 }
 
@@ -1304,7 +1304,7 @@ PKM_PRJROOT=$(dirname "$PKM_MAINTFILE")
   && source "${PKM_PRJROOT}/.${PKM_NAME}/config"
   source "$PKM_MAINTFILE"
   extract_targets_ "$PKM_MAINTFILE"
-  targets_['default']="default"
+  targets_['default']="tg_default"
 }
 
 process_args "$@"
@@ -1324,17 +1324,8 @@ fi
 
 if [ "${commands[$PKM_CMD]}" ]; then
   (${commands[$PKM_CMD]} "$@")
-elif [ x$(type -t "$PKM_CMD") = 'xfunction' ] && [ "${targets_[$PKM_CMD]}" ]; then
-  # This "targets_" workaround sanitize arbitrary function execution from
-  # Maintfile target. On the other hand, there can be used Mainfile "hacks",
-  # like
-  #
-  #   echo '
-  #   func_name () {' >/dev/null
-  #
-  # to make selected functions invokable from command line (to keep your
-  # Maintfiles readable, you should use `target' command to achieve this).
-  ($PKM_CMD "$@")
+elif [ "${targets_[$PKM_CMD]}" ]; then
+  (${targets_[$PKM_CMD]} "$@")
 else
   error "unknown command: $PKM_CMD"
 fi

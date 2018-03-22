@@ -10,6 +10,7 @@
 
 require_command wc
 require_command ls
+require_command find
 require_command mkdir
 require_command cp
 require_command mv
@@ -18,6 +19,7 @@ require_command tar
 require_command gzip
 require_command bzip2
 require_command fedpkg
+require_command rpmlint
 
 ###############################################################################
 # User configuration
@@ -871,7 +873,7 @@ function add_license() {
 
   case "${ProjectVars[LICENSE]}" in
     MIT)
-      Y=$(sh $PKM_PROG stamp "--format=%(tm_year)d"); E=$?
+      Y=$(sh $PKM_PROG stamp "--format=%Y"); E=$?
       [ $E -ne 0 ] && exit $E
       expr "$Y" : '^[1-9][0-9]*$' >/dev/null 2>&1 || error "$FUNCNAME: invalid year format '$Y'"
       [ -z "${ProjectVars[AUTHOR_NAME]}" ] && error "$FUNCNAME: author's name's not set"
@@ -1015,7 +1017,7 @@ function get_sources() {
 #
 #   $1 - source tarball
 #
-# Unpack selected tarball from source cache to upstream directory. Do not
+# Unpack selected tarball from source cache to downstream directory. Do not
 # overwrite the existing one.
 function unpack_source() {
   local D
@@ -1044,12 +1046,39 @@ function unpack_source() {
 }
 
 ##
+# get_repos
+#
+# Get downstream and package repos.
+function get_repos() {
+  local R
+
+  [ $PKM_DEBUG -ne 0 ] && set -x
+  R="${PKM_PRJROOT}"
+  [ -d "$R/downstream" ] || mkdir "$R/downstream"
+  [ -d "$R/specfiles" ] || mkdir "$R/specfiles"
+  [ -d "$R/downstream" ] && [ "${ProjectVars[DOWNSTREAM_REPO]}" ] && (
+    cd "$R/downstream" && \
+    if [ "${ProjectVars[DOWNSTREAM_REPO]}" ]; then
+      if [ ! -d "${ProjectVars[DOWNSTREAM_REPO]##*/}/.git" ]; then
+        git clone "${ProjectVars[DOWNSTREAM_REPO]}"
+      fi
+    fi
+  )
+  [ -d "$R/specfiles" ] && [ "${ProjectVars[PKG_NAME]}" ] && (
+    cd "$R/specfiles" && \
+    if [ ! -d "$R/specfiles/${ProjectVars[PKG_NAME]}/.git" ]; then
+      fedpkg clone "${ProjectVars[PKG_NAME]}"
+    fi
+  )
+}
+
+##
 # ds_prep $1 $2
 #
 #   $1 - target with unpacked sources
 #   $2 - target's new name
 #
-# Prepare dowmstream (rename $1 to $2, cd to $2, and do git init).
+# Prepare downstream (rename $1 to $2, cd to $2, and do git init).
 function ds_prep() {
   local D
 
@@ -1089,4 +1118,21 @@ function make_patch() {
   if [ "$T" ]; then
     echo "$T" > "${PKM_PRJROOT}/specfiles/${ProjectVars[PKG_NAME]}/$P"
   fi
+}
+
+##
+# rpm_lint
+#
+# Collect spec files and (s)rmp files and run rpmlint on them.
+function rpm_lint() {
+  local C
+
+  [ $PKM_DEBUG -ne 0 ] && set -x
+  C="rpmlint ${ProjectVars[PKG_NAME]}.spec"
+  pushd "${PKM_PRJROOT}/specfiles/${ProjectVars[PKG_NAME]}" > /dev/null
+  for f in $(find . -iname "*.rpm"); do
+    C="$C $f"
+  done
+  eval "$C"
+  popd > /dev/null
 }
