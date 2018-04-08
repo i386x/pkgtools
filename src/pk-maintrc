@@ -583,6 +583,9 @@ template NEWFILE_NASM_HEADER_TEMPLATE \
 template NEWFILE_C_HEADER_TEMPLATE \
   "$(newfile_gen_header_template -c '/*' -H ' *' -c ' *' -c ' */')" \
   $(newfile_template_args)
+template NEWFILE_PY_HEADER_TEMPLATE \
+  "$(newfile_gen_header_template -u '#' -H '#' -c '#')" \
+  $(newfile_template_args)
 template NEWFILE_MAKEFILE_HEADER_TEMPLATE \
   "$(newfile_gen_header_template -c '#' -H '#' -c '#')" \
   $(newfile_template_args)
@@ -611,6 +614,10 @@ template NEWFILE_H_TEMPLATE "\
 
 #endif
 " HEADER=NEWFILE_C_HEADER_TEMPLATE
+
+template NEWFILE_PY_TEMPLATE "\
+@HEADER
+" HEADER=NEWFILE_PY_HEADER_TEMPLATE
 
 template NEWFILE_MAKEFILE_TEMPLATE "\
 @HEADER

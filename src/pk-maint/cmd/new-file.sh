@@ -38,6 +38,9 @@ function newfile_guess_template() {
       *.h)
         T="H"
         ;;
+      *.py)
+        T="PY"
+        ;;
       Makefile | *.mk )
         T="MAKEFILE"
         ;;
