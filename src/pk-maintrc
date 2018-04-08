@@ -590,6 +590,7 @@ template NEWFILE_MAKEFILE_HEADER_TEMPLATE \
 template NEWFILE_PLAIN_TEMPLATE ""
 
 template NEWFILE_PKM_GITIGNORE_TEMPLATE "\
+/upstream
 /downstream
 /specfiles
 "
@@ -626,7 +627,33 @@ setvar AUTHOR_EMAIL '\"''\"'
 setvar LICENSE '\"''\"'
 setvar VERSION '\"''\"'
 
-# Project maintaining tasks:
+setvar PKG_NAME '\"''\"'
+setvar PKG_VERSION '\"''\"'
+setvar UPSTREAM_REPO \"\"
+setvar DOWNSTREAM_REPO \"\"
+
+###############################################################################
+# Project maintaining tasks (targets)
+###############################################################################
+
+##
+# Print usage as default.
+tg_default() {
+  echo '\"'Maintfile targets:'\"'
+  echo '\"''\"'
+  echo '\"'  missing'\"'
+  echo '\"'    add missing files to the project root (LICENSE, README.md, and'\"'
+  echo '\"'    VERSION) and update headers of source files (\\\\\\\\project, \\\\\\\\license,'\"'
+  echo '\"'    and \\\\\\\\version)'\"'
+  echo '\"''\"'
+}
+
+##
+# missing
+#
+# Add missing files to the project root (LICENSE, README.md, and VERSION) and
+# update headers of source files (\\\\project, \\\\license, and \\\\version).
+target missing
 " HEADER=NEWFILE_MAKEFILE_HEADER_TEMPLATE
 
 ###############################################################################
@@ -942,6 +969,34 @@ function add_version() {
 }
 
 ##
+# edit_source $1
+#
+#   $1 - source file
+#
+# Update \project, \license, and \version fields in $1's header.
+function edit_source() {
+  local T
+
+  update_header "$1" project "${ProjectVars[PROJECT]}" && \
+  T=$(see_license "${ProjectVars[LICENSE]}" "${ProjectFiles[license]}") && \
+  update_header "$1" license "$T" && \
+  T=$(see_file "${ProjectFiles[version]}") && \
+  update_header "$1" version "$T"
+}
+
+##
+# missing
+#
+# Add missing files to the project root (LICENSE, README.md, and VERSION) and
+# update headers of source files (\project, \license, and \version).
+function missing() {
+  add_license LICENSE && \
+  add_readme  README.md && \
+  add_version VERSION && \
+  for_files sources edit_source
+}
+
+##
 # ensure_specfiles
 #
 # Ensure there exists ./specfiles/${PKG_NAME}/ directory. This involves also
@@ -1048,28 +1103,47 @@ function unpack_source() {
 ##
 # get_repos
 #
-# Get downstream and package repos.
+# Get upstream, downstream and package repos.
 function get_repos() {
   local R
+  local T
 
   [ $PKM_DEBUG -ne 0 ] && set -x
   R="${PKM_PRJROOT}"
-  [ -d "$R/downstream" ] || mkdir "$R/downstream"
-  [ -d "$R/specfiles" ] || mkdir "$R/specfiles"
-  [ -d "$R/downstream" ] && [ "${ProjectVars[DOWNSTREAM_REPO]}" ] && (
-    cd "$R/downstream" && \
-    if [ "${ProjectVars[DOWNSTREAM_REPO]}" ]; then
-      if [ ! -d "${ProjectVars[DOWNSTREAM_REPO]##*/}/.git" ]; then
+  # Get upstream repo:
+  if [ "${ProjectVars[UPSTREAM_REPO]}" ]; then
+    T="${ProjectVars[UPSTREAM_REPO]##*/}"
+    T="${T%.git}"
+    [ -d "$R/upstream" ] || mkdir "$R/upstream"
+    [ -d "$R/upstream" ] && (
+      cd "$R/upstream" && \
+      if [ ! -d "$T/.git" ]; then
+        git clone "${ProjectVars[UPSTREAM_REPO]}"
+      fi
+    )
+  fi
+  # Get downstream repo:
+  if [ "${ProjectVars[DOWNSTREAM_REPO]}" ]; then
+    T="${ProjectVars[DOWNSTREAM_REPO]##*/}"
+    T="${T%.git}"
+    [ -d "$R/downstream" ] || mkdir "$R/downstream"
+    [ -d "$R/downstream" ] && (
+      cd "$R/downstream" && \
+      if [ ! -d "$T/.git" ]; then
         git clone "${ProjectVars[DOWNSTREAM_REPO]}"
       fi
-    fi
-  )
-  [ -d "$R/specfiles" ] && [ "${ProjectVars[PKG_NAME]}" ] && (
-    cd "$R/specfiles" && \
-    if [ ! -d "$R/specfiles/${ProjectVars[PKG_NAME]}/.git" ]; then
-      fedpkg clone "${ProjectVars[PKG_NAME]}"
-    fi
-  )
+    )
+  fi
+  # Get package repo:
+  if [ "${ProjectVars[PKG_NAME]}" ]; then
+    [ -d "$R/specfiles" ] || mkdir "$R/specfiles"
+    [ -d "$R/specfiles" ] && (
+      cd "$R/specfiles" && \
+      if [ ! -d "${ProjectVars[PKG_NAME]}/.git" ]; then
+        fedpkg clone "${ProjectVars[PKG_NAME]}"
+      fi
+    )
+  fi
 }
 
 ##
