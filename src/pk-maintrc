@@ -627,17 +627,23 @@ template NEWFILE_MAINTFILE_TEMPLATE "\
 @HEADER
 
 # Project variables:
-setvar PROJECT '\"''\"'
+setvar PROJECT '\"'@XPROJECT maintenance tools'\"'
 setvar PROJECT_SHORT '\"''\"'
-setvar AUTHOR_NAME '\"''\"'
-setvar AUTHOR_EMAIL '\"''\"'
-setvar LICENSE '\"''\"'
-setvar VERSION '\"''\"'
+setvar AUTHOR_NAME '\"'@XAUTHOR_NAME'\"'
+setvar AUTHOR_EMAIL '\"'@XAUTHOR_EMAIL'\"'
+setvar LICENSE '\"'MIT'\"'
+setvar VERSION '\"'0.0.0'\"'
 
-setvar PKG_NAME '\"''\"'
+setvar PKG_NAME '\"'@XPKG_NAME'\"'
 setvar PKG_VERSION '\"''\"'
 setvar UPSTREAM_REPO \"\"
 setvar DOWNSTREAM_REPO \"\"
+
+# Project files:
+addfile license : LICENSE
+addfile version : VERSION
+addfile : .gitignore README.md
+addfile sources : Maintfile
 
 ###############################################################################
 # Project maintaining tasks (targets)
@@ -648,6 +654,8 @@ setvar DOWNSTREAM_REPO \"\"
 tg_default() {
   echo '\"'Maintfile targets:'\"'
   echo '\"''\"'
+  echo '\"'  get_repos'\"'
+  echo '\"'    get upstream, downstream and package repos'\"'
   echo '\"'  missing'\"'
   echo '\"'    add missing files to the project root (LICENSE, README.md, and'\"'
   echo '\"'    VERSION) and update headers of source files (\\\\\\\\project, \\\\\\\\license,'\"'
@@ -661,6 +669,12 @@ tg_default() {
 # Add missing files to the project root (LICENSE, README.md, and VERSION) and
 # update headers of source files (\\\\project, \\\\license, and \\\\version).
 target missing
+
+##
+# get_repos
+#
+# Get upstream, downstream and package repos.
+target get_repos
 " HEADER=NEWFILE_MAKEFILE_HEADER_TEMPLATE
 
 ###############################################################################

@@ -72,7 +72,16 @@ function init_cmd() {
   exists ".git" || git init
 
   # 3. if there is no Maintfile, create it:
-  eval "sh $PKM_PROG new-file $V -r.git -TMaintfile -d\"Project maintenance script.\" Maintfile"
+  T=${PWD##*/}
+  T=${T%%-maint}
+  if [ "$T" ]; then
+    XPROJECT="$T"
+    XPKG_NAME="$T"
+  else
+    XPROJECT="???"
+    XPKG_NAME=""
+  fi
+  eval "sh $PKM_PROG new-file $V -r.git -TMaintfile -d\"Project maintenance script.\" Maintfile XPROJECT=\"$XPROJECT\" XAUTHOR_NAME=\"$(newfile_guess_author_name)\" XAUTHOR_EMAIL=\"$(newfile_guess_author_email)\" XPKG_NAME=\"$XPKG_NAME\""
 
   # 4. if there is no .gitignore, create it:
   eval "sh $PKM_PROG new-file $V -Tpkm-gitignore .gitignore"
