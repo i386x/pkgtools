@@ -18,6 +18,7 @@ require_command rm
 require_command tar
 require_command gzip
 require_command bzip2
+require_command git
 require_command fedpkg
 require_command rpmlint
 
@@ -1231,3 +1232,195 @@ function rpm_lint() {
   eval "$C"
   popd > /dev/null
 }
+
+revert_po_commands_generator_='
+import sys
+import re
+
+po_re = re.compile(r"^po/[^/]+\.po$")
+
+class CheckError(Exception):
+    pass
+
+def check(cond, msg, *args):
+    if not cond:
+        raise CheckError(msg % args)
+
+class Diff(object):
+    __slots__ = [ "name", "commands" ]
+
+    def __init__(self, name):
+        self.name = name
+        self.commands = []
+
+    def add(self, l):
+        self.commands.append((1, l))
+
+    def remove(self, l):
+        self.commands.append((-1, l))
+
+class DiffSet(object):
+    __slots__ = [ "diffs" ]
+
+    def __init__(self):
+        self.diffs = {}
+
+    def getlast(self):
+        check(1 in self.diffs, "No diffs")
+        return self.diffs[1]
+
+    def add(self, diff):
+        if not self.diffs:
+            self.diffs[0] = diff
+        check(diff.name not in self.diffs, "Duplicit item (%r)", diff.name)
+        last = self.diffs.get(1)
+        if last:
+            self.diffs[last.name] = (last, diff)
+        self.diffs[diff.name] = (diff, None)
+        self.diffs[1] = diff
+
+    def forall(self, p):
+        o = self.diffs.get(0)
+        while o:
+            if not p(o):
+                return False
+            o = self.diffs[o.name][1]
+        return True
+
+class DiffScanner(object):
+    DIFF_GIT = "diff --git "
+    __slots__ = [ "lines", "nlines", "pos" ]
+
+    def __init__(self, s):
+        self.lines = [ l for l in s.split("\n") if l ]
+        self.nlines = len(self.lines)
+        self.pos = 0
+
+    def eof(self):
+        return self.pos >= self.nlines
+
+    def current_line(self):
+        if not self.eof():
+            return self.lines[self.pos]
+        return None
+
+    def read_diff_git(self, f):
+        lines, i, n = self.lines, self.pos, self.nlines
+        while i < n and not lines[i].startswith(self.DIFF_GIT):
+            i += 1
+        check(i < n, "Missing %r", self.DIFF_GIT)
+        line = lines[i]
+        parts = line[len(self.DIFF_GIT):].strip().split(" ")
+        parts = [ p.strip() for p in parts ]
+        parts = [ x for x in parts if x ]
+        check(
+            len(parts) == 2 \
+            and parts[0].startswith("a/") \
+            and parts[1].startswith("b/") \
+            and len(parts[0][2:]) > 0 \
+            and parts[0][2:] == parts[1][2:],
+            "Invalid %r (%r)", self.DIFF_GIT, line
+        )
+        f(self, parts[0][2:])
+        self.pos = i + 1
+
+    def read_line(self, prefix, f):
+        check(self.pos < self.nlines, "End of file reached")
+        line = self.lines[self.pos]
+        check(line.startswith(prefix), "%r not starts with %r", line, prefix)
+        f(self, line)
+        self.pos += 1
+
+    def read_lines(self, f):
+        lines, i, n = self.lines, self.pos, self.nlines
+        while i < n and f(self, lines[i]):
+            i += 1
+        self.pos = i
+
+def read_diff_from_file(diffset, path):
+    with open(path, "r") as f:
+        read_diff_from_str(diffset, f.read())
+
+def read_diff_from_str(diffset, s):
+    def add_diff(scanner, name):
+        diffset.add(Diff(name))
+    def skip(scanner, x):
+        pass
+    def online(scanner, line):
+        if line.startswith("@@ "):
+            return True
+        elif line.startswith(" "):
+            return True
+        elif line.startswith("+"):
+            diffset.getlast().add(line[1:])
+            return True
+        elif line.startswith("-"):
+            diffset.getlast().remove(line[1:])
+            return True
+        return False
+    scanner = DiffScanner(s)
+    while not scanner.eof():
+        scanner.read_diff_git(add_diff)
+        scanner.read_line("index ", skip)
+        scanner.read_line("--- ", skip)
+        scanner.read_line("+++ ", skip)
+        scanner.read_lines(online)
+    check(scanner.eof(), "Uprocessed input (%r)", scanner.current_line())
+
+def only_po_files(diff):
+    return po_re.match(diff.name) is not None
+
+def only_pot_creation_date_changed(diff):
+    return (
+        len(diff.commands) == 2 \
+        and diff.commands[0][0] == -diff.commands[1][0] \
+        and diff.commands[0][1].startswith("\"POT-Creation-Date: ") \
+        and diff.commands[1][1].startswith("\"POT-Creation-Date: ")
+    )
+
+def generate_revert_command(diff):
+    sys.stdout.write("git checkout -- %r\n" % diff.name)
+    return True
+
+def main(argv):
+    try:
+        check(len(argv) > 0, "Expected file name")
+        diffset = DiffSet()
+        read_diff_from_file(diffset, argv[0])
+        check(diffset.forall(only_po_files), "Not only .po files has changed")
+        check(diffset.forall(only_pot_creation_date_changed),
+            "Not only POT-Creation-Date has changed"
+        )
+        diffset.forall(generate_revert_command)
+    except IOError:
+        sys.stderr.write("File %r cannot be read.\n" % argv[0])
+        return 1
+    except CheckError as e:
+        sys.stderr.write("%s.\n" % e.args[0])
+        return 1
+    return 0
+
+sys.exit(main(sys.argv[1:]))
+'
+
+##
+# revert_po
+#
+# Discard changes in *.po files if the change is only POT-Creation-Date.
+function revert_po() {(
+  local T
+  local U
+
+  T="/var/tmp/git-diff.$$"
+  U="/var/tmp/revert-po-$$.sh"
+  [ $PKM_DEBUG -ne 0 ] && set -x
+  cd "${PKM_PRJROOT}/upstream/${ProjectVars[PKG_NAME]}" && \
+  git diff > $T && \
+  python -c "${revert_po_commands_generator_}" $T > $U && \
+  if [ $PKM_DEBUG -ne 0 ]; then
+    cat $U
+  else
+    sh $U
+  fi
+  rm -f $T $U
+)}
