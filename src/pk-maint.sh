@@ -369,6 +369,41 @@ function config() {
   fi
 }
 
+##
+# isset $1 $2 ... $n
+#
+#   $1 - mode (one of -v, --var[s], -c, --config[s])
+#   $2, $3, ..., $n - list of variable/config names
+#
+# Check if variable(s) (-v) or config(s) (-c) is/are set before it is/they are
+# used.
+function isset() {
+  case "z$1" in
+    z-v | z--var*)
+      shift
+      for P; do
+        if [ -z "${ProjectVars[$P]}" ]; then
+          error "'$P' is not set; use 'setvar $P <value>'"
+        fi
+      done
+      ;;
+    z-c | z--config*)
+      shift
+      for P; do
+        if [ -z "${ProjectConfig[$P]}" ]; then
+          error "'$P' is not set; use 'setvar $P <value>'"
+        fi
+      done
+      ;;
+    z)
+      error "$FUNCNAME: expected --var[s] or --config[s]"
+      ;;
+    *)
+      error "$FUNCNAME: unknown option '$1'"
+      ;;
+  esac
+}
+
 templater_prologue_='
 import sys
 import os
