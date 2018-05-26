@@ -349,7 +349,7 @@ function newfile_guess_stamp() {
   local F
 
   F=$(eval_template NEWFILE_STAMP_FORMAT)
-  sh $PKM_PROG stamp "--file=$3" "--format=$F"
+  sh $PKM_PROG $PKM_INIT stamp "--file=$3" "--format=$F"
 }
 
 ##
@@ -629,7 +629,6 @@ template NEWFILE_MAINTFILE_TEMPLATE "\
 
 # Project variables:
 setvar PROJECT '\"'@XPROJECT maintenance tools'\"'
-setvar PROJECT_SHORT '\"''\"'
 setvar AUTHOR_NAME '\"'@XAUTHOR_NAME'\"'
 setvar AUTHOR_EMAIL '\"'@XAUTHOR_EMAIL'\"'
 setvar LICENSE '\"'MIT'\"'
@@ -639,6 +638,69 @@ setvar PKG_NAME '\"'@XPKG_NAME'\"'
 setvar PKG_VERSION '\"''\"'
 setvar UPSTREAM_REPO \"\"
 setvar DOWNSTREAM_REPO \"\"
+
+# Project files:
+addfile license : LICENSE
+addfile version : VERSION
+addfile : .gitignore README.md
+addfile sources : Maintfile
+
+###############################################################################
+# Project maintaining tasks (targets)
+###############################################################################
+
+##
+# Print usage as default.
+tg_default() {
+  echo '\"'Maintfile targets:'\"'
+  echo '\"''\"'
+  echo '\"'  get_repos'\"'
+  echo '\"'    get upstream, downstream and package repos'\"'
+  echo '\"'  missing'\"'
+  echo '\"'    add missing files to the project root (LICENSE, README.md, and'\"'
+  echo '\"'    VERSION) and update headers of source files (\\\\\\\\project, \\\\\\\\license,'\"'
+  echo '\"'    and \\\\\\\\version)'\"'
+  echo '\"''\"'
+}
+
+##
+# missing
+#
+# Add missing files to the project root (LICENSE, README.md, and VERSION) and
+# update headers of source files (\\\\project, \\\\license, and \\\\version).
+target missing
+
+##
+# get_repos
+#
+# Get upstream, downstream and package repos.
+target get_repos
+" HEADER=NEWFILE_MAKEFILE_HEADER_TEMPLATE
+
+template NEWFILE_GOPKG_MAINTFILE_TEMPLATE "\
+@HEADER
+
+# Project variables:
+setvar PROJECT '\"'@XPROJECT maintenance tools'\"'
+setvar AUTHOR_NAME '\"'@XAUTHOR_NAME'\"'
+setvar AUTHOR_EMAIL '\"'@XAUTHOR_EMAIL'\"'
+setvar LICENSE '\"'MIT'\"'
+setvar VERSION '\"'0.0.0'\"'
+
+setvar PKG_NAME '\"'@XPKG_NAME'\"'
+setvar PKG_VERSION '\"'0'\"'
+setvar PKG_COMMIT '\"''\"'
+setvar PKG_COMMITDATE '\"''\"'
+
+# Sets:
+# - PKG_SHORTCOMMIT
+# - GOPKG_PROVIDER
+# - GOPKG_PROVIDER_TLD
+# - GOPKG_PROJECT
+# - GOPKG_REPO
+# - GOPKG_SRCDIR
+# - UPSTREAM_REPO
+gopkg_meta
 
 # Project files:
 addfile license : LICENSE
@@ -922,7 +984,7 @@ function add_license() {
 
   case "${ProjectVars[LICENSE]}" in
     MIT)
-      Y=$(sh $PKM_PROG stamp "--format=%Y"); E=$?
+      Y=$(sh $PKM_PROG $PKM_INIT stamp "--format=%Y"); E=$?
       [ $E -ne 0 ] && exit $E
       expr "$Y" : '^[1-9][0-9]*$' >/dev/null 2>&1 || error "$FUNCNAME: invalid year format '$Y'"
       [ -z "${ProjectVars[AUTHOR_NAME]}" ] && error "$FUNCNAME: author's name's not set"
@@ -1424,3 +1486,168 @@ function revert_po() {(
   fi
   rm -f $T $U
 )}
+
+##
+# gopkg_meta $1 $2 ... $n
+#
+#   $1, $2, ..., $n - options
+#
+# where options are
+#
+#   --provider-re <pattern>    set the pattern that matches provider
+#   --project-re <pattern>     set the pattern that matches project
+#   --srcdir <path>            set the path to where the package sources
+#                              should be copied (relative to golang workspace)
+#   --upstream <url>           URL to project's upstream
+#
+# Compute project variables associated with golang package. These variables
+# are:
+#
+#   PKG_SHORTCOMMIT
+#     - computed from PKG_COMMIT
+#   GOPKG_PROVIDER
+#   GOPKG_PROVIDER_TLD
+#   GOPKG_PROJECT
+#   GOPKG_REPO
+#     - computed from package name or, if given, from --srcdir option
+#   GOPKG_SRCDIR
+#     - given by --srcdir option; if no --srcdir option is provided,
+#       GOPKG_SRCDIR is computed from GOPKG_PROVIDER, GOPKG_PROVIDER_TLD,
+#       GOPKG_PROJECT, and GOPKG_REPO
+#   UPSTREAM_REPO
+#     - given by --upstream option; if no --upstream option is provided,
+#       UPSTREAM_REPO is computed from GOPKG_PROVIDER, GOPKG_PROVIDER_TLD,
+#       GOPKG_PROJECT, and GOPKG_REPO
+#
+# As a pattern can be used a bash regular expression, without anchors and
+# parenthesis. The occurrence of \w is substituted by [_0-9A-Za-z].
+#
+# Examples:
+#
+#   # set source directory to 'github.com/paulrosania/go-charset'; that is,
+#   # package source files will be copied to
+#   #
+#   #   $GOWORKSPACE/src/github.com/paulrosania/go-charset
+#   #
+#   gopkg_meta --srcdir github.com/paulrosania/go-charset
+#
+#   # set the patterns that match provider and project to \w and \w-\w,
+#   # respectively; these patterns are used during guessing the provider,
+#   # project, and repo from the package name, i.e. if the package name is
+#   #
+#   #   golang-github-foo-bar-baz
+#   #
+#   # then the provider's and project's name is github and foo-bar,
+#   # respectively
+#   gopkg_meta --provider-re '\w' --project-re '\w-\w'
+#
+#   # set the project's upstream URL
+#   gopkg_meta --upstream 'https://github.com/paulrosania/go-charset.git'
+#
+function gopkg_meta() {
+  local PROVIDER
+  local PROVIDER_TLD
+  local PROJECT
+  local REPO
+  local SCANNER
+  local T
+  local U
+
+  # Gather options:
+  local OPT_PROVIDER_RE
+  local OPT_PROJECT_RE
+  local OPT_SRCDIR
+  local OPT_UPSTREAM
+  while [ $# -gt 0 ]; do
+    case $1 in
+      --provider-re)
+        OPT_PROVIDER_RE="$2"
+        shift 2
+        ;;
+      --project-re)
+        OPT_PROJECT_RE="$2"
+        shift 2
+        ;;
+      --srcdir)
+        OPT_SRCDIR="$2"
+        shift 2
+        ;;
+      --upstream)
+        OPT_UPSTREAM="$2"
+        shift 2
+        ;;
+      *) error "$FUNCNAME: invalid option: $1" ;;
+    esac
+  done
+  # Set default values:
+  [ -z "$OPT_PROVIDER_RE" ] && OPT_PROVIDER_RE='\w'
+  [ -z "$OPT_PROJECT_RE" ] && OPT_PROJECT_RE='\w'
+  # Assemble scanner:
+  SCANNER="^xgolang-"
+  T=$(echo "(${OPT_PROVIDER_RE})" | sed -e 's/\\w/[_0-9A-Za-z]+/g')
+  SCANNER="${SCANNER}${T}-"
+  T=$(echo "(${OPT_PROJECT_RE})" | sed -e 's/\\w/[_0-9A-Za-z]+/g')
+  SCANNER="${SCANNER}${T}-(.+)$"
+  # Guess PROVIDER, PROVIDER_TLD, PROJECT, and REPO:
+  if [[ "x$OPT_SRCDIR" =~ ^x([^/.]+)\.([^/]+)/([^/]+)/([^/]+)$ ]]; then
+    # - from `--srcdir':
+    PROVIDER="${BASH_REMATCH[1]}"
+    PROVIDER_TLD="${BASH_REMATCH[2]}"
+    PROJECT="${BASH_REMATCH[3]}"
+    REPO="${BASH_REMATCH[4]}"
+  elif [[ "x$OPT_UPSTREAM" =~ ^x[^/]+//([^/.]+)\.([^/]+)/([^/]+)/([^/.]+).*$ ]]; then
+    # - from `--upstream':
+    PROVIDER="${BASH_REMATCH[1]}"
+    PROVIDER_TLD="${BASH_REMATCH[2]}"
+    PROJECT="${BASH_REMATCH[3]}"
+    REPO="${BASH_REMATCH[4]}"
+  elif [[ "x${ProjectVars[PKG_NAME]}" =~ $SCANNER ]]; then
+    # - from package name:
+    PROVIDER="${BASH_REMATCH[1]}"
+    PROJECT="${BASH_REMATCH[2]}"
+    REPO="${BASH_REMATCH[3]}"
+    case x$PROVIDER in
+      xgithub) PROVIDER_TLD=com ;;
+      x*) error "$FUNCNAME: cannot determine PROVIDER_TLD from '$PROVIDER'" ;;
+    esac
+  else
+    error "$FUNCNAME: cannot determine PROVIDER, PROVIDER_TLD, PROJECT, and REPO"
+  fi
+  # Finally, set up project variables:
+  # - PKG_SHORTCOMMIT
+  [ ${#ProjectVars[PKG_COMMIT]} -eq 40 ] || error "$FUNCNAME: #PKG_COMMIT != 40"
+  setvar PKG_SHORTCOMMIT "${ProjectVars[PKG_COMMIT]:0:7}"
+  # - GOPKG_PROVIDER, GOPKG_PROVIDER_TLD, GOPKG_PROJECT, GOPKG_REPO
+  setvar GOPKG_PROVIDER "${PROVIDER}"
+  setvar GOPKG_PROVIDER_TLD "${PROVIDER_TLD}"
+  setvar GOPKG_PROJECT "${PROJECT}"
+  setvar GOPKG_REPO "${REPO}"
+  # - GOPKG_SRCDIR
+  isset --vars GOWORKSPACE
+  if [ "$OPT_SRCDIR" ]; then
+    setvar GOPKG_SRCDIR "${ProjectVars[GOWORKSPACE]}/src/${OPT_SRCDIR}"
+  else
+    setvar GOPKG_SRCDIR "${ProjectVars[GOWORKSPACE]}/src/${PROVIDER}.${PROVIDER_TLD}/${PROJECT}/${REPO}"
+  fi
+  # - UPSTREAM_REPO
+  if [ "$OPT_UPSTREAM" ]; then
+    setvar UPSTREAM_REPO "${OPT_UPSTREAM}"
+  else
+    # Guess protocol:
+    case $PROVIDER in
+      github) T="https://"; U=".git" ;;
+      *) error "$FUNCNAME: cannot determine protocol for $PROVIDER" ;;
+    esac
+    setvar UPSTREAM_REPO "${T}${PROVIDER}.${PROVIDER_TLD}/${PROJECT}/${REPO}${U}"
+  fi
+  # In debug mode, show the variables:
+  [ $PKM_DEBUG -ne 0 ] && {
+    echo "PKG_SHORTCOMMIT:     ${ProjectVars[PKG_SHORTCOMMIT]}"
+    echo "GOPKG_PROVIDER:      ${ProjectVars[GOPKG_PROVIDER]}"
+    echo "GOPKG_PROVIDER_TLD:  ${ProjectVars[GOPKG_PROVIDER_TLD]}"
+    echo "GOPKG_PROJECT:       ${ProjectVars[GOPKG_PROJECT]}"
+    echo "GOPKG_REPO:          ${ProjectVars[GOPKG_REPO]}"
+    echo "GOPKG_SRCDIR:        ${ProjectVars[GOPKG_SRCDIR]}"
+    echo "UPSTREAM_REPO:       ${ProjectVars[UPSTREAM_REPO]}"
+  }
+}

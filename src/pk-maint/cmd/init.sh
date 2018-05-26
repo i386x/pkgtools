@@ -30,6 +30,7 @@ function init_usage() {
 
 function init_cmd() {
   local E
+  local G
   local V
   local T
 
@@ -37,6 +38,7 @@ function init_cmd() {
   OPTSTORAGE_PREFIX='INIT'
 
   make_optstorage
+  defopt - gopkg "${tab_sep}this package is golang package"
   defopt h,? help "print this screen and exit"
   defopt v verbose "${tab_sep}print what has been created"
   defopt - version "${tab_sep}print the version and exit"
@@ -48,6 +50,10 @@ function init_cmd() {
   [ $INITOPT_VERSION -ne 0 ] && { echo $PKM_VERSION; exit 0; }
   V=""
   [ $INITOPT_VERBOSE -ne 0 ] && V="-v"
+  E=eval
+  [ $PKM_DEBUG -ne 0 ] && { V="-v"; E=echo; }
+  G=""
+  [ $INITOPT_GOPKG -ne 0 ] && G="gopkg-"
 
   # Check if we are in initialized repository:
   T=$(search_upwards "$(pwd)" ".${PKM_NAME}")
@@ -59,17 +65,17 @@ function init_cmd() {
   # 1. create .pk-maint directory:
   exists ".${PKM_NAME}" || {
     [ "$V" ] && echo "making .${PKM_NAME} directory"
-    mkdir ".${PKM_NAME}"
+    [ $PKM_DEBUG -ne 0 ] || mkdir ".${PKM_NAME}"
   }
 
   # 1.1. create .pk-maint/config:
   exists ".${PKM_NAME}/config" || {
     [ "$V" ] && echo "creating file .${PKM_NAME}/config"
-    touch ".${PKM_NAME}/config"
+    [ $PKM_DEBUG -ne 0 ] || touch ".${PKM_NAME}/config"
   }
 
   # 2. if there is no .git directory, run `git init`:
-  exists ".git" || git init
+  exists ".git" || { [ $PKM_DEBUG -ne 0 ] || git init; }
 
   # 3. if there is no Maintfile, create it:
   T=${PWD##*/}
@@ -81,8 +87,9 @@ function init_cmd() {
     XPROJECT="???"
     XPKG_NAME=""
   fi
-  eval "sh $PKM_PROG new-file $V -r.git -TMaintfile -d\"Project maintenance script.\" Maintfile XPROJECT=\"$XPROJECT\" XAUTHOR_NAME=\"$(newfile_guess_author_name)\" XAUTHOR_EMAIL=\"$(newfile_guess_author_email)\" XPKG_NAME=\"$XPKG_NAME\""
+  [[ "$XPROJECT" =~ ^golang-.*$ ]] && G="gopkg-"
+  $E "sh $PKM_PROG --init new-file $V -r.git -T${G}Maintfile -d\"Project maintenance script.\" Maintfile XPROJECT=\"$XPROJECT\" XAUTHOR_NAME=\"$(newfile_guess_author_name)\" XAUTHOR_EMAIL=\"$(newfile_guess_author_email)\" XPKG_NAME=\"$XPKG_NAME\""
 
   # 4. if there is no .gitignore, create it:
-  eval "sh $PKM_PROG new-file $V -Tpkm-gitignore .gitignore"
+  $E "sh $PKM_PROG --init new-file $V -Tpkm-gitignore .gitignore"
 }

@@ -43,6 +43,9 @@ export PKM_CMD
 PKM_DEBUG=0
 export PKM_DEBUG
 
+PKM_INIT=""
+export PKM_INIT
+
 ##
 # error $1
 #
@@ -1279,6 +1282,7 @@ function edit_cmd() {
 
 defopt - debug "${tab_sep}enter the debug mode"
 defopt h,? help "print this screen and exit"
+defopt - init "${tab_sep}we are running in init mode (Maintfile is not yet ready)"
 defopt - version "${tab_sep}print version and exit"
 icmd edit "${tab_sep}edit the given input file and send it to the given output" edit_cmd
 icmd help "${tab_sep}display help about selected command" help_cmd
@@ -1331,10 +1335,16 @@ function tg_default() {
   true
 }
 
+process_args "$@"
+shift $nargs
+
+PKM_DEBUG=$OPT_DEBUG
+[ $OPT_INIT -ne 0 ] && PKM_INIT="--init"
+
 PKM_MAINTFILE=$(search_upwards "$(pwd)" "Maintfile")
 PKM_PRJROOT=$(dirname "$PKM_MAINTFILE")
 
-[ "$PKM_MAINTFILE" ] && {
+[ -z "$PKM_INIT" ] && [ "$PKM_MAINTFILE" ] && {
   [ -f "${PKM_PRJROOT}/.${PKM_NAME}/config" ] \
   && source "${PKM_PRJROOT}/.${PKM_NAME}/config"
   source "$PKM_MAINTFILE"
@@ -1342,15 +1352,12 @@ PKM_PRJROOT=$(dirname "$PKM_MAINTFILE")
   targets_['default']="tg_default"
 }
 
-process_args "$@"
-shift $nargs
-
-PKM_DEBUG=$OPT_DEBUG
 [ $OPT_HELP -ne 0 ] && { usage; exit 0; }
 [ $OPT_VERSION -ne 0 ] && { echo $PKM_VERSION; exit 0; }
 
 if [ -z "$1" ]; then
   [ -z "$PKM_MAINTFILE" ] && exit 0
+  [ "$PKM_INIT" ] && exit 0
   PKM_CMD='default'
 else
   PKM_CMD="$1"
