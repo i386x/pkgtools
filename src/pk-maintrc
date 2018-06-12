@@ -19,6 +19,7 @@ require_command tar
 require_command gzip
 require_command bzip2
 require_command git
+require_command spectool
 require_command fedpkg
 require_command rpmlint
 
@@ -810,6 +811,16 @@ function dir_diff() {
 }
 
 ##
+# assert_dir $1
+#
+#   $1 - path to directory
+#
+# Fail if $1 is not a directory.
+function assert_dir() {
+  [ -d "$1" ] || error "$FUNCNAME: $1 is not a directory"
+}
+
+##
 # ensure_dir $1
 #
 #   $1 - directory name
@@ -817,7 +828,8 @@ function dir_diff() {
 # Test if $1 exists. If not, create it. If $1 is a file, fail.
 function ensure_dir() {
   [ -f "$1" ] && error "$FUNCNAME: $1 is a file"
-  [ -d "$1" ] || mkdir "$1"
+  [ -d "$1" ] || mkdir -p "$1"
+  [ -d "$1" ] || error "$FUNCNAME: can't create $1"
 }
 
 ##
@@ -1486,6 +1498,336 @@ function revert_po() {(
   fi
   rm -f $T $U
 )}
+
+##
+# srpm $1 $2 ... $n
+#
+#   $1              - command
+#   $2, $3, ..., $n - command options
+#
+# Make source rpm from specfile. Usage:
+#
+#   srpm --init
+#     Initialize temporary workplace. A path to temporary workplace is
+#     "${TMP_WORKPLACE}/srpm/$PKG_NAME". If TMP_WORKPLACE is not set, its
+#     default value is '.pk-maint/tmp'.
+#   srpm --show WHAT
+#     Show the value of WHAT, where WHAT can be:
+#     - srcdir - show the path to the directory with specfile;
+#     - destdir - show the path to the directory with the made srpms;
+#     - workdir - show the path to the workplace.
+#   srpm --copyin PATH
+#     Copy PATH into the workplace and start track it.
+#   srpm --copyout PATH
+#     Copy file to PATH. The name of the file is the last element of PATH.
+#   srpm --commit
+#     Commit the tracked files to the internal git repo.
+#   srpm --get-sources
+#     Download sources listed in specfile.
+#   srpm --srpm [RELEASE]
+#     Make source RPM for RELEASE. If RELEASE is omitted, `master' is used.
+#   srpm --clean
+#     Remove untracked files from the workplace.
+#   srpm --done
+#     Finish work, cleanup the workplace.
+#
+function srpm() {
+  case $1 in
+    --init)
+      shift
+      srpm_init "$@"
+      ;;
+    --show)
+      shift
+      srpm_show "$@"
+      ;;
+    --copyin)
+      shift
+      srpm_copyin "$@"
+      ;;
+    --copyout)
+      shift
+      srpm_copyout "$@"
+      ;;
+    --commit)
+      shift
+      srpm_commit "$@"
+      ;;
+    --get-sources)
+      shift
+      srpm_get_sources "$@"
+      ;;
+    --srpm)
+      shift
+      srpm_srpm "$@"
+      ;;
+    --clean)
+      shift
+      srpm_clean "$@"
+      ;;
+    --done)
+      shift
+      srpm_done "$@"
+      ;;
+    *) error "$FUNCNAME: unknown command: $1" ;;
+  esac
+}
+
+##
+# srpm_init
+#
+# Implements `srpm --init`.
+function srpm_init() {
+  local W
+
+  [ $PKM_DEBUG -ne 0 ] && set -x
+  isset --vars PKG_NAME INIPKG_DIR
+  W=$(srpm_show workdir)
+  ensure_dir "$W"
+  (
+    cd "$W" &&
+    git init &&
+    echo '*.bz2' > .gitignore &&
+    echo '*.gz' >> .gitignore &&
+    echo '*.tar' >> .gitignore &&
+    echo '*.tgz' >> .gitignore &&
+    echo '*.xz' >> .gitignore &&
+    git add .gitignore
+  ) || error "$FUNCNAME: failed"
+}
+
+##
+# srpm_show $1
+#
+#   $1 - what to be shown
+#
+# Implements `srpm --show`.
+function srpm_show() {
+  local W
+
+  case $1 in
+    srcdir)
+      echo ${PKM_PRJROOT}/specfiles/${ProjectVars[PKG_NAME]}-init
+      ;;
+    destdir)
+      echo ${ProjectVars[INIPKG_DIR]}/${ProjectVars[PKG_NAME]}
+      ;;
+    workdir)
+      W="${ProjectVars[TMP_WORKPLACE]}"
+      [ "$W" ] || W="${PKM_PRJROOT}/.${PKM_NAME}/tmp"
+      echo $W/srpm/${ProjectVars[PKG_NAME]}
+      ;;
+  esac
+}
+
+##
+# srpm_copyin $1
+#
+#   $1 - path to file to be copyied in
+#
+# Implements `srpm --copyin`.
+function srpm_copyin() {
+  local D
+  local F
+
+  [ $PKM_DEBUG -ne 0 ] && set -x
+  D=$(srpm_show workdir)
+  F="$1"
+  [ -f "$F" ] || error "$FUNCNAME: $F is not a file"
+  cp "$F" "$D/${F##*/}" || error "$FUNCNAME: can't copy $F"
+  (cd "$D" && git add "${F##*/}") || error "$FUNCNAME: can't track ${F##*/}"
+}
+
+##
+# srpm_copyout $1
+#
+#   $1 - path to destination
+#
+# Implements `srpm --copyout`.
+function srpm_copyout() {
+  local D
+  local F
+
+  [ $PKM_DEBUG -ne 0 ] && set -x
+  D=$(srpm_show workdir)
+  F="$1"
+  [ -f "$D/${F##*/}" ] || error "$FUNCNAME: $D/${F##*/} is not a file"
+  cp "$D/${F##*/}" "$F" || error "$FUNCNAME: can't copy $D/${F##*/}"
+}
+
+##
+# srpm_commit
+#
+# Implements `srpm --commit`.
+function srpm_commit() {
+  local E
+  local W
+
+  [ $PKM_DEBUG -ne 0 ] && set -x
+  W=$(srpm_show workdir)
+  (
+    cd "$W" &&
+    { git log -1 2>&1 >/dev/null; E=$?; } &&
+    if [ $E -ne 0 ]; then
+      git commit -m "Initial commit"
+    else
+      git commit -m "Update"
+    fi
+  ) || error "$FUNCNAME: failed"
+}
+
+##
+# srpm_get_sources
+#
+# Implements `srpm --get-sources`.
+function srpm_get_sources() {
+  local W
+
+  [ $PKM_DEBUG -ne 0 ] && set -x
+  W=$(srpm_show workdir)
+  (
+    cd "$W" &&
+    spectool -g "${ProjectVars[PKG_NAME]}.spec"
+  ) || error "$FUNCNAME: failed"
+}
+
+##
+# srpm_srpm $1
+#
+#   $1 - release (optional)
+#
+# Implements `srpm --srpm`.
+function srpm_srpm() {
+  local R
+  local W
+
+  [ $PKM_DEBUG -ne 0 ] && set -x
+  W=$(srpm_show workdir)
+  R="$1"; [ "$R" ] || R="master"
+  (
+    cd "$W" &&
+    fedpkg --release "$R" local
+  ) || error "$FUNCNAME: failed"
+}
+
+##
+# srpm_clean
+#
+# Implements `srpm --clean`.
+function srpm_clean() {
+  local T
+  local W
+
+  [ $PKM_DEBUG -ne 0 ] && set -x
+  W=$(srpm_show workdir)
+  T=5
+  (
+    cd "$W" &&
+    while [ $(git status -s | grep -E '^\?\?' | wc -l) -gt 0 ] && [ $T -gt 0 ]; do
+      fedpkg clean
+      T=$(( T - 1 ))
+    done
+  ) || error "$FUNCNAME: failed"
+  (cd "$W" && [ $(git status -s | grep -E '^\?\?' | wc -l) -gt 0 ]) \
+  && error "$FUNCNAME: there are still untracked files"
+}
+
+##
+# srpm_done
+#
+# Implements `srpm --done`.
+function srpm_done() {
+  local W
+
+  [ $PKM_DEBUG -ne 0 ] && set -x
+  W=$(srpm_show workdir)
+  [ -d "$W" ] && rm -rfd "$W"
+  [ -d "$W" ] && error "$FUNCNAME: failed"
+}
+
+##
+# inipkg $1 $2 ... $n
+#
+#   $1, $2, ..., $n - list of releases
+#
+# Make an initial package (suitable for review requests).
+function inipkg() {
+  local R
+
+  isset --vars PKG_NAME INIPKG_DIR
+  assert_dir $(srpm_show srcdir)
+  ensure_dir $(srpm_show destdir)
+
+  [ $# -gt 0 ] || set -- master
+
+  [ $PKM_DEBUG -ne 0 ] && set -x
+
+  # Copy files:
+  for_files inipkg inipkg_cp_file
+
+  # Create source rpms:
+  # - wipe out old
+  srpm --done
+  # - fresh init
+  srpm --init
+  # - move package files inside
+  for_files inipkg inipkg_copyin
+  # - get sources
+  srpm --get-sources
+  # - commit changes to internal git repo
+  srpm --commit
+  # - make srpms
+  for R; do
+    srpm --srpm $R
+    inipkg_copyout
+    srpm --clean
+  done
+  # - done
+  srpm --done
+}
+
+##
+# inipkg_cp_file $1
+#
+#   $1 - path to file
+#
+# Helper for `inipkg'.
+function inipkg_cp_file() {
+  local D
+  local F
+
+  D=$(srpm_show destdir)
+  F="$1"
+  [ -f "$F" ] || error "$FUNCNAME: $F is not a file"
+  cp "$F" "$D/${F##*/}" || error "can't copy $F to $D/${F##*/}"
+}
+
+##
+# inipkg_copyin $1
+#
+#   $1 - path to file
+#
+# Helper for `inipkg'.
+function inipkg_copyin() {
+  srpm --copyin "$1"
+}
+
+##
+# inipkg_copyout
+#
+# Helper for `inipkg'.
+function inipkg_copyout() {
+  local D
+  local W
+
+  D=$(srpm_show destdir)
+  W=$(srpm_show workdir)
+  for F in $(ls -a1 $W); do
+    if [[ "$F" =~ ^.*\.src\.rpm$ ]]; then
+      srpm --copyout "$D/$F"
+    fi
+  done
+}
 
 ##
 # gopkg_meta $1 $2 ... $n
