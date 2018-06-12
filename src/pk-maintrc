@@ -1725,6 +1725,7 @@ function srpm_clean() {
     cd "$W" &&
     while [ $(git status -s | grep -E '^\?\?' | wc -l) -gt 0 ] && [ $T -gt 0 ]; do
       fedpkg clean
+      sleep 1
       T=$(( T - 1 ))
     done
   ) || error "$FUNCNAME: failed"
@@ -1769,6 +1770,7 @@ function inipkg() {
   # - wipe out old
   srpm --done
   # - fresh init
+  sleep 1
   srpm --init
   # - move package files inside
   for_files inipkg inipkg_copyin
@@ -1781,6 +1783,7 @@ function inipkg() {
     srpm --srpm $R
     inipkg_copyout
     srpm --clean
+    sleep 1
   done
   # - done
   srpm --done
