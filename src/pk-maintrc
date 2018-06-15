@@ -15,6 +15,7 @@ require_command mkdir
 require_command cp
 require_command mv
 require_command rm
+require_command sleep
 require_command tar
 require_command gzip
 require_command bzip2
@@ -595,9 +596,11 @@ template NEWFILE_MAKEFILE_HEADER_TEMPLATE \
 template NEWFILE_PLAIN_TEMPLATE ""
 
 template NEWFILE_PKM_GITIGNORE_TEMPLATE "\
+.pk-maint/log
 /upstream
 /downstream
-/specfiles
+/specfiles/*
+!/specfiles/*-init/
 "
 
 template NEWFILE_ASM_TEMPLATE "\
@@ -1295,15 +1298,55 @@ function make_patch() {
 #
 # Collect spec files and (s)rmp files and run rpmlint on them.
 function rpm_lint() {
-  local C
-
   [ $PKM_DEBUG -ne 0 ] && set -x
-  C="rpmlint ${ProjectVars[PKG_NAME]}.spec"
-  pushd "${PKM_PRJROOT}/specfiles/${ProjectVars[PKG_NAME]}" > /dev/null
+  do_rpmlint --workdir "${PKM_PRJROOT}/specfiles/${ProjectVars[PKG_NAME]}"
+}
+
+##
+# do_rpmlint $1 $2 ... $n
+#
+#   $1, $2, ..., $n - options
+#
+# Run `rpmlint` command. Options are:
+#
+#   --specname NAME - specify specfile name
+#   --workdir PATH  - specify working directory
+#   --with-logging  - save the results to the common logfile
+#
+function do_rpmlint() {
+  local C
+  local L
+  local S
+  local W
+
+  L=eval
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --specname)
+        S="$2"
+        shift 2
+        ;;
+      --workdir)
+        W="$2"
+        shift 2
+        ;;
+      --with-logging)
+        L=log_command
+        shift
+        ;;
+      *) error "$FUNCNAME: invalid option: $1" ;;
+    esac
+  done
+  [ "$S" ] || S="${ProjectVars[PKG_NAME]}"
+  [ "$S" ] || error "$FUNCNAME: missing specfile name"
+  [ "$W" ] && { [ -d "$W" ] || error "$FUNCNAME: $W is not a directory"; }
+
+  [ "$W" ] && pushd "$W" > /dev/null
+  C="rpmlint $S.spec"
   for f in $(find . -iname "*.rpm"); do
     C="$C $f"
   done
-  eval "$C"
+  $L "$C"
   popd > /dev/null
 }
 
@@ -1526,6 +1569,8 @@ function revert_po() {(
 #     Download sources listed in specfile.
 #   srpm --srpm [RELEASE]
 #     Make source RPM for RELEASE. If RELEASE is omitted, `master' is used.
+#   srpm --lint
+#     Run rpmlint, save results to common the logfile.
 #   srpm --clean
 #     Remove untracked files from the workplace.
 #   srpm --done
@@ -1560,6 +1605,10 @@ function srpm() {
     --srpm)
       shift
       srpm_srpm "$@"
+      ;;
+    --lint)
+      shift
+      srpm_lint "$@"
       ;;
     --clean)
       shift
@@ -1711,6 +1760,17 @@ function srpm_srpm() {
 }
 
 ##
+# srpm_lint
+#
+# Implements `srpm --lint'.
+function srpm_lint() {
+  [ $PKM_DEBUG -ne 0 ] && set -x
+  do_rpmlint --workdir "$(srpm_show workdir)" \
+             --specname "${ProjectVars[PKG_NAME]}" \
+             --with-logging
+}
+
+##
 # srpm_clean
 #
 # Implements `srpm --clean`.
@@ -1730,7 +1790,7 @@ function srpm_clean() {
     done
   ) || error "$FUNCNAME: failed"
   (cd "$W" && [ $(git status -s | grep -E '^\?\?' | wc -l) -gt 0 ]) \
-  && error "$FUNCNAME: there are still untracked files"
+  && error "$FUNCNAME: there are still untracked files" || :
 }
 
 ##
@@ -1743,7 +1803,7 @@ function srpm_done() {
   [ $PKM_DEBUG -ne 0 ] && set -x
   W=$(srpm_show workdir)
   [ -d "$W" ] && rm -rfd "$W"
-  [ -d "$W" ] && error "$FUNCNAME: failed"
+  [ -d "$W" ] && error "$FUNCNAME: failed" || :
 }
 
 ##
@@ -1781,6 +1841,8 @@ function inipkg() {
   # - make srpms
   for R; do
     srpm --srpm $R
+    sleep 1
+    srpm --lint
     inipkg_copyout
     srpm --clean
     sleep 1

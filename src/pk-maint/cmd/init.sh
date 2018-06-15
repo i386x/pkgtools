@@ -74,6 +74,12 @@ function init_cmd() {
     [ $PKM_DEBUG -ne 0 ] || touch ".${PKM_NAME}/config"
   }
 
+  # 1.2. create .pk-maint/log
+  exists ".${PKM_NAME}/log" || {
+    [ "$V" ] && echo "creating file .${PKM_NAME}/log"
+    [ $PKM_DEBUG -ne 0 ] || touch ".${PKM_NAME}/log"
+  }
+
   # 2. if there is no .git directory, run `git init`:
   exists ".git" || { [ $PKM_DEBUG -ne 0 ] || git init; }
 

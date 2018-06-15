@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 #
 #! \file    ./src/pk-maint.sh
 #! \author  Jiří Kučera, <jkucera AT redhat.com>
@@ -35,7 +35,8 @@ export nl_sep tab_sep
 
 PKM_MAINTFILE=""
 PKM_PRJROOT=""
-export PKM_MAINTFILE PKM_PRJROOT
+PKM_LOG=""
+export PKM_MAINTFILE PKM_PRJROOT PKM_LOG
 
 PKM_CMD=""
 export PKM_CMD
@@ -325,6 +326,30 @@ while True:
 # return the absolute path to it. Otherwise, the result is empty.
 function search_upwards() {
   python -c "${upwards_crawler_}" "$@"
+}
+
+##
+# log_command $1
+#
+#   $1 - command
+#
+# Run $1, copy and append stdout and stderr to the common logfile. In the
+# logfile, each line from stdout and stderr is prefixed by ">>> " and "!!! ",
+# respectively.
+function log_command() {
+  local L
+  local T
+
+  L="${PKM_LOG}"
+  if [ -f "$L" ]; then
+    echo "" >> "$L"
+    T=$(date '+%Y-%m-%d %H:%M:%S %z')
+    echo "[$T]: Running \"$1\":" >> "$L"
+    eval "$1" 2> >(tee >(awk '{print "!!! " $0}' >> "$L") >&2) \
+              1> >(tee >(awk '{print ">>> " $0}' >> "$L")    )
+  else
+    eval "$1"
+  fi
 }
 
 ##
@@ -627,13 +652,19 @@ function for_files() {
   done
 }
 
+require_command date
+require_command tput
+require_command wc
+require_command less
 require_command cat
+require_command tee
 require_command head
 require_command cut
 require_command tr
 require_command expr
 require_command grep
 require_command sed
+require_command awk
 require_command python
 
 PKM_VERSION='@VERSION@'
@@ -1178,7 +1209,7 @@ function help_cmd() {
   [ -z "$1" ] && error "expected command"
   [ -z "${commands[$1]}" ] && error "unknown command $1"
 
-  (${commands[$1]} --help)
+  (PKM_CMD=$1; ${commands[$1]} --help)
 }
 
 ##
@@ -1280,6 +1311,65 @@ function edit_cmd() {
   eval "$C"
 }
 
+##
+# log_usage
+#
+# Display help lines for `log' builtin command.
+function log_usage() {
+  echo "$PKM_CMD: $PKM_CMD [options]"
+  echo ""
+  echo "Display the common log file; options are"
+  echo ""
+  eval "echo \"\$${OPTSTORAGE_PREFIX}_helplines\""
+  echo ""
+}
+
+##
+# log_cmd $1 $2 ... $n
+#
+#   $1, $2, ..., $n - arguments
+#
+# `log` builtin command.
+function log_cmd() {
+  local D
+  local M
+  local N
+
+  OPTVAR_PREFIX='LOGOPT_'
+  OPTSTORAGE_PREFIX='LOG'
+
+  make_optstorage
+  defopt a all "${tab_sep}dump log to stdout"
+  defopt - clear "${tab_sep}clear the log"
+  defopt h,? help "print this screen and exit"
+  defopt i interactive "show log in less"
+  defopt - version "${tab_sep}print the version and exit"
+
+  process_args "$@"
+  shift $nargs
+
+  [ $LOGOPT_HELP -ne 0 ] && { log_usage; exit 0; }
+  [ $LOGOPT_VERSION -ne 0 ] && { echo $PKM_VERSION; exit 0; }
+
+  # Handle clear option first:
+  [ $LOGOPT_CLEAR -ne 0 ] && { echo -n "" > "$PKM_LOG"; exit $?; }
+  # No log? Exit:
+  [ -f "$PKM_LOG" ] || exit 0
+  # Get terminal limit:
+  M=$(tput lines); M=$(( M - 1 ))
+  # Count lines in log:
+  N=$(cat "$PKM_LOG" | wc -l)
+  # Choose displaying strategy:
+  D=""
+  [ $LOGOPT_ALL -ne 0 ] && D=cat
+  [ $LOGOPT_INTERACTIVE -ne 0 ] && {
+    [ "$D" ] && error "display mode is already set ($D)"
+    D=less
+  }
+  [ -z "$D" ] && { D=cat; [ $N -gt $M ] && D=less; }
+  $D "$PKM_LOG"
+}
+
 defopt - debug "${tab_sep}enter the debug mode"
 defopt h,? help "print this screen and exit"
 defopt - init "${tab_sep}we are running in init mode (Maintfile is not yet ready)"
@@ -1287,6 +1377,7 @@ defopt - version "${tab_sep}print version and exit"
 icmd edit "${tab_sep}edit the given input file and send it to the given output" edit_cmd
 icmd help "${tab_sep}display help about selected command" help_cmd
 icmd init "${tab_sep}initialize project directory" init.sh
+icmd log "${tab_sep}show the log" log_cmd
 icmd new-file "create a new source file" new-file.sh
 icmd selftest "run tests for this script" selftest_cmd
 fcmd stamp "${tab_sep}get the time date stamp" stamp.py
@@ -1343,6 +1434,7 @@ PKM_DEBUG=$OPT_DEBUG
 
 PKM_MAINTFILE=$(search_upwards "$(pwd)" "Maintfile")
 PKM_PRJROOT=$(dirname "$PKM_MAINTFILE")
+PKM_LOG="${PKM_PRJROOT}/.${PKM_NAME}/log"
 
 [ -z "$PKM_INIT" ] && [ "$PKM_MAINTFILE" ] && {
   [ -f "${PKM_PRJROOT}/.${PKM_NAME}/config" ] \
