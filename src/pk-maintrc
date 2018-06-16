@@ -1748,14 +1748,15 @@ function srpm_get_sources() {
 # Implements `srpm --srpm`.
 function srpm_srpm() {
   local R
+  local V
   local W
 
-  [ $PKM_DEBUG -ne 0 ] && set -x
+  [ $PKM_DEBUG -ne 0 ] && { V=-v; set -x; }
   W=$(srpm_show workdir)
   R="$1"; [ "$R" ] || R="master"
   (
     cd "$W" &&
-    fedpkg --release "$R" local
+    fedpkg $V --release "$R" local
   ) || error "$FUNCNAME: failed"
 }
 
