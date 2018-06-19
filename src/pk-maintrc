@@ -1076,11 +1076,11 @@ function add_version() {
 function edit_source() {
   local T
 
-  update_header "$1" project "${ProjectVars[PROJECT]}" && \
+  update_header "${PKM_PRJROOT}/$1" project "${ProjectVars[PROJECT]}" && \
   T=$(see_license "${ProjectVars[LICENSE]}" "${ProjectFiles[license]}") && \
-  update_header "$1" license "$T" && \
+  update_header "${PKM_PRJROOT}/$1" license "$T" && \
   T=$(see_file "${ProjectFiles[version]}") && \
-  update_header "$1" version "$T"
+  update_header "${PKM_PRJROOT}/$1" version "$T"
 }
 
 ##
@@ -1863,7 +1863,7 @@ function inipkg_cp_file() {
   local F
 
   D=$(srpm_show destdir)
-  F="$1"
+  F="${PKM_PRJROOT}/$1"
   [ -f "$F" ] || error "$FUNCNAME: $F is not a file"
   cp "$F" "$D/${F##*/}" || error "can't copy $F to $D/${F##*/}"
 }
@@ -1875,7 +1875,7 @@ function inipkg_cp_file() {
 #
 # Helper for `inipkg'.
 function inipkg_copyin() {
-  srpm --copyin "$1"
+  srpm --copyin "${PKM_PRJROOT}/$1"
 }
 
 ##
